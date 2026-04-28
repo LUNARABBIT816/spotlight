@@ -330,7 +330,7 @@
         window.saveToLocalGallery = () => {
             const btn = document.getElementById('saveBtn');
             btn.disabled = true;
-            btn.innerText = "저장됨 ✔";
+            btn.innerText = "저장 중...";
 
             const imageData = resultCanvas.toDataURL('image/jpeg', 0.8);
             
@@ -349,9 +349,15 @@
             // 로컬 저장소에 저장
             try {
                 localStorage.setItem('spotlight_photos', JSON.stringify(photos));
-                alert("사진이 전시관에 등록되었습니다!");
+                
+                // 저장 성공 후 즉시 전시관으로 이동하여 확인 가능하게 함
+                setTimeout(() => {
+                    window.showGallery();
+                }, 500);
             } catch (e) {
                 alert("저장 공간이 부족합니다. 전시관에서 이전 사진들을 삭제해 주세요.");
+                btn.disabled = false;
+                btn.innerText = "전시관 등록";
             }
         };
 
