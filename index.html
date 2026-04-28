@@ -31,7 +31,6 @@
             position: relative;
         }
 
-        /* 카메라 컨테이너 - 전체 화면 */
         .camera-view {
             position: relative;
             width: 100%;
@@ -50,7 +49,7 @@
             left: 0;
             width: 100%;
             height: 100%;
-            object-fit: cover; /* 화면을 꽉 채우도록 설정 */
+            object-fit: cover;
         }
 
         .btn-large {
@@ -96,30 +95,52 @@
         .custom-scroll::-webkit-scrollbar { width: 12px; }
         .custom-scroll::-webkit-scrollbar-track { background: #1e293b; }
         .custom-scroll::-webkit-scrollbar-thumb { background: #475569; border-radius: 10px; }
+
+        /* 셔터 플래시 효과 */
+        #flash {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: white;
+            z-index: 100;
+            opacity: 0;
+            pointer-events: none;
+        }
+        .flash-active {
+            animation: flash-anim 0.5s ease-out;
+        }
+        @keyframes flash-anim {
+            0% { opacity: 1; }
+            100% { opacity: 0; }
+        }
     </style>
 </head>
 <body>
+
+    <div id="flash"></div>
 
     <div id="app">
         <!-- 1. 시작 화면 -->
         <div id="step-start" class="flex-1 flex flex-col items-center justify-center p-10 text-center space-y-10 z-10 bg-slate-900">
             <div class="space-y-4">
-                <div class="text-[10rem] md:text-[12rem] leading-none">📸</div>
+                <div class="text-[10rem] md:text-[12rem] leading-none animate-bounce">📸</div>
                 <h1 class="text-7xl md:text-[10rem] font-extrabold text-red-500 tracking-tighter uppercase leading-tight">Spotlight</h1>
-                <h2 class="text-3xl md:text-5xl text-slate-300">전자칠판 포토존 (무설치 버전)</h2>
+                <h2 class="text-3xl md:text-5xl text-slate-300">최후의 5초, 주인공이 되어보세요!</h2>
             </div>
             
             <div class="flex flex-col md:flex-row gap-8 justify-center pt-6 w-full max-w-4xl px-4">
                 <button id="btn-start" class="btn-large flex-1 bg-red-500 hover:bg-red-600 text-white text-4xl md:text-5xl py-8 rounded-[2.5rem] shadow-2xl font-bold border-b-8 border-red-800">
-                    게임 시작
+                    챌린지 시작
                 </button>
                 <button id="btn-gallery" class="btn-large flex-1 bg-blue-600 hover:bg-blue-700 text-white text-4xl md:text-5xl py-8 rounded-[2.5rem] shadow-2xl font-bold border-b-8 border-blue-800">
                     전시관 보기
                 </button>
             </div>
             
-            <button onclick="toggleFullscreen()" class="bg-slate-700 hover:bg-slate-600 text-white text-xl px-8 py-3 rounded-full border-2 border-slate-500 transition-all">
-                🖥️ 모니터 전체 화면으로 전환하기
+            <button onclick="toggleFullscreen()" class="bg-slate-700 hover:bg-slate-600 text-white text-xl px-12 py-4 rounded-full border-2 border-slate-500 transition-all shadow-lg">
+                🖥️ 전체 화면으로 즐기기
             </button>
         </div>
 
@@ -137,37 +158,102 @@
             </div>
         </div>
 
-        <!-- 3. 결과 화면 -->
-        <div id="step-result" class="hidden flex-1 flex flex-col items-center justify-center p-8 text-center space-y-8 z-10 bg-slate-900">
-            <h2 class="text-5xl font-bold text-yellow-400">포착된 순간! ✨</h2>
+        <!-- 3. 결과 확인 화면 -->
+        <div id="step-result" class="hidden flex-1 flex flex-col items-center justify-center p-8 text-center space-y-6 z-10 bg-slate-900">
+            <div class="space-y-2">
+                <h2 class="text-4xl md:text-5xl font-bold text-yellow-400">나이스 샷! ✨</h2>
+                <p class="text-xl text-slate-300">이 사진을 전시관에 등록할까요?</p>
+            </div>
             <div class="relative inline-block border-[12px] border-white rounded-[2.5rem] shadow-2xl overflow-hidden bg-black max-w-[85%] max-h-[60vh]">
                 <canvas id="resultCanvas" class="w-full h-full object-contain"></canvas>
             </div>
             <div class="flex gap-8 justify-center pt-2 w-full max-w-3xl">
-                <button onclick="startCamera()" class="flex-1 bg-slate-600 hover:bg-slate-500 text-white py-6 rounded-2xl text-3xl font-bold btn-large">다시 하기</button>
-                <button id="saveBtn" class="flex-1 bg-green-600 hover:bg-green-700 text-white py-6 rounded-2xl text-3xl font-bold btn-large shadow-xl border-b-8 border-green-900">전시관 등록</button>
+                <button onclick="startCamera()" class="flex-1 bg-slate-600 hover:bg-slate-500 text-white py-6 rounded-2xl text-2xl md:text-3xl font-bold btn-large">다시 찍기</button>
+                <button id="saveBtn" class="flex-1 bg-green-600 hover:bg-green-700 text-white py-6 rounded-2xl text-2xl md:text-3xl font-bold shadow-xl border-b-8 border-green-900">전시관 등록</button>
             </div>
         </div>
 
         <!-- 4. 전시관 화면 -->
         <div id="step-gallery" class="hidden h-full flex flex-col p-8 space-y-6 z-10 bg-slate-900">
             <div class="flex justify-between items-center border-b-6 border-slate-700 pb-6">
-                <h2 class="text-5xl font-bold text-blue-400">🖼️ 실시간 전시관 (이 기기 저장)</h2>
+                <h2 class="text-5xl font-bold text-blue-400">🖼️ 실시간 전시관</h2>
                 <div class="flex gap-4">
-                    <button onclick="clearPhotos()" class="bg-slate-700 px-6 py-2 rounded-xl text-lg text-red-400">전체 삭제</button>
-                    <button onclick="exitToHome()" class="bg-red-500 hover:bg-red-600 text-white text-2xl px-10 py-4 rounded-xl font-bold btn-large shadow-lg">종료</button>
+                    <button onclick="clearPhotos()" class="bg-slate-700 px-6 py-2 rounded-xl text-lg text-red-400 font-bold hover:bg-slate-600">기록 초기화</button>
+                    <button onclick="exitToHome()" class="bg-red-500 hover:bg-red-600 text-white text-2xl px-10 py-3 rounded-xl font-bold btn-large shadow-lg">메인으로</button>
                 </div>
             </div>
             <div id="gallery-grid" class="flex-1 grid grid-cols-2 lg:grid-cols-3 gap-8 overflow-y-auto p-4 custom-scroll">
-                <!-- 사진이 로드됩니다 -->
+                <!-- 사진 데이터 -->
             </div>
             <div class="text-center pb-6">
-                <button onclick="startCamera()" class="bg-red-500 text-white px-16 py-6 rounded-full text-4xl font-bold shadow-2xl btn-large border-b-8 border-red-900">나도 찍으러 가기</button>
+                <button onclick="startCamera()" class="bg-red-500 text-white px-16 py-6 rounded-full text-4xl font-bold shadow-2xl btn-large border-b-8 border-red-900">새 사진 찍기</button>
             </div>
         </div>
     </div>
 
     <script>
+        // --- 사운드 엔진 (Web Audio API) ---
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        
+        function playSound(type) {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+
+            if (type === 'tick') { // 카운트다운 틱
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(440, audioCtx.currentTime);
+                gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.1);
+            } else if (type === 'final') { // 마지막 촬영음
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(880, audioCtx.currentTime);
+                gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.3);
+            } else if (type === 'shutter') { // 찰칵 소리 (화이트 노이즈)
+                const bufferSize = audioCtx.sampleRate * 0.1;
+                const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+                const data = buffer.getChannelData(0);
+                for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+                const noise = audioCtx.createBufferSource();
+                noise.buffer = buffer;
+                const noiseGain = audioCtx.createGain();
+                noiseGain.gain.setValueAtTime(0.5, audioCtx.currentTime);
+                noiseGain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+                noise.connect(noiseGain);
+                noiseGain.connect(audioCtx.destination);
+                noise.start();
+            }
+        }
+
+        // 긴장감 있는 심장 박동 배경음
+        let suspenseInterval;
+        function startSuspenseMusic() {
+            stopSuspenseMusic();
+            suspenseInterval = setInterval(() => {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(60, audioCtx.currentTime); // 낮은 베이스음
+                gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.4);
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.4);
+            }, 600); // 0.6초 간격 쿵-쿵-
+        }
+        function stopSuspenseMusic() {
+            if (suspenseInterval) clearInterval(suspenseInterval);
+        }
+
+        // --- 앱 로직 ---
         const video = document.getElementById('video');
         const gameCanvas = document.getElementById('gameCanvas');
         const resultCanvas = document.getElementById('resultCanvas');
@@ -189,8 +275,8 @@
             if (!document.fullscreenElement) {
                 if (doc.requestFullscreen) doc.requestFullscreen();
                 else if (doc.webkitRequestFullscreen) doc.webkitRequestFullscreen();
-            } else {
-                if (document.exitFullscreen) document.exitFullscreen();
+            } else if (document.exitFullscreen) {
+                document.exitFullscreen();
             }
         }
 
@@ -199,7 +285,6 @@
             if (!container) return;
             gameCanvas.width = container.offsetWidth;
             gameCanvas.height = container.offsetHeight;
-            
             if (spotlight.x === 0 || spotlight.x > gameCanvas.width) {
                 spotlight.x = gameCanvas.width / 2;
                 spotlight.y = gameCanvas.height / 2;
@@ -211,6 +296,7 @@
 
         function exitToHome() {
             isCaptured = true;
+            stopSuspenseMusic();
             cancelAnimationFrame(animationId);
             if (video.srcObject) {
                 video.srcObject.getTracks().forEach(t => t.stop());
@@ -220,6 +306,7 @@
         }
 
         async function startCamera() {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
             toggleFullscreen();
             try {
                 isCaptured = false;
@@ -235,9 +322,10 @@
                     setTimeout(syncCanvasSize, 100);
                     startGameLoop();
                     startCountdown();
+                    startSuspenseMusic(); // 게임 시작 시 긴장감 음악 시작
                 };
             } catch (err) {
-                alert("카메라 실행 실패: " + err.message);
+                alert("카메라를 사용할 수 없습니다. 권한 설정을 확인해 주세요.");
             }
         }
 
@@ -258,8 +346,8 @@
             spotlight.r = spotlight.baseR + Math.sin(spotlight.phase) * (spotlight.baseR * 0.4);
 
             if (Math.random() < 0.03) { 
-                spotlight.dx = (Math.random() - 0.5) * 22; 
-                spotlight.dy = (Math.random() - 0.5) * 22; 
+                spotlight.dx = (Math.random() - 0.5) * 25; 
+                spotlight.dy = (Math.random() - 0.5) * 25; 
             }
 
             gCtx.clearRect(0, 0, w, h);
@@ -284,14 +372,19 @@
         function startCountdown() {
             const cdDisplay = document.getElementById('countdown');
             cdDisplay.innerText = countdownValue;
+            playSound('tick'); // 첫 소리
+
             const timer = setInterval(() => {
                 if (isCaptured) { clearInterval(timer); return; }
                 countdownValue--;
-                if (countdownValue > 0) cdDisplay.innerText = countdownValue;
-                else { 
+                if (countdownValue > 0) {
+                    cdDisplay.innerText = countdownValue;
+                    playSound('tick');
+                } else { 
                     clearInterval(timer); 
                     cdDisplay.innerText = "📸"; 
-                    setTimeout(capturePhoto, 500); 
+                    playSound('final');
+                    setTimeout(capturePhoto, 400); 
                 }
             }, 1000);
         }
@@ -299,19 +392,24 @@
         function capturePhoto() {
             if (isCaptured) return;
             isCaptured = true;
+            stopSuspenseMusic();
             cancelAnimationFrame(animationId);
             
+            // 셔터 효과음 및 플래시
+            playSound('shutter');
+            const flash = document.getElementById('flash');
+            flash.classList.add('flash-active');
+            setTimeout(() => flash.classList.remove('flash-active'), 500);
+
             resultCanvas.width = video.videoWidth;
             resultCanvas.height = video.videoHeight;
             
-            // 거울 모드로 촬영
             rCtx.save();
             rCtx.translate(resultCanvas.width, 0);
             rCtx.scale(-1, 1);
             rCtx.drawImage(video, 0, 0, resultCanvas.width, resultCanvas.height);
             rCtx.restore();
             
-            // 스포트라이트 합성 (좌표 보정)
             const scaleX = resultCanvas.width / gameCanvas.width;
             const scaleY = resultCanvas.height / gameCanvas.height;
             const mask = document.createElement('canvas');
@@ -326,35 +424,36 @@
             mCtx.fill();
             
             rCtx.drawImage(mask, 0, 0);
-            switchStep('step-result');
-            
-            const sBtn = document.getElementById('saveBtn');
-            sBtn.disabled = false;
-            sBtn.innerText = "전시관 등록";
+
+            // 미리보기 위해 게임 캔버스에 결과 잠시 렌더링
+            gCtx.clearRect(0,0,gameCanvas.width, gameCanvas.height);
+            gCtx.save();
+            gCtx.translate(gameCanvas.width, 0);
+            gCtx.scale(-1, 1);
+            gCtx.drawImage(resultCanvas, 0, 0, gameCanvas.width, gameCanvas.height);
+            gCtx.restore();
+
+            setTimeout(() => {
+                switchStep('step-result');
+                document.getElementById('saveBtn').disabled = false;
+                document.getElementById('saveBtn').innerText = "전시관 등록";
+            }, 800);
         }
 
-        // --- 로컬 저장소 (DB 없이 저장) ---
         function saveToLocalGallery() {
             const btn = document.getElementById('saveBtn');
             btn.disabled = true;
             btn.innerText = "저장 중...";
 
-            // 용량을 줄이기 위해 품질을 0.5로 조정
             const imageData = resultCanvas.toDataURL('image/jpeg', 0.5);
-            
             try {
                 let photos = JSON.parse(localStorage.getItem('my_spotlight_photos') || '[]');
                 photos.unshift({ id: Date.now(), img: imageData });
-                
-                // 최대 50장 보관 (브라우저 용량 제한 대응)
                 if (photos.length > 50) photos = photos.slice(0, 50);
-                
                 localStorage.setItem('my_spotlight_photos', JSON.stringify(photos));
-                
-                // 저장 즉시 전시관으로 이동하여 확인
                 showGallery();
             } catch (e) {
-                alert("저장 공간이 부족합니다! 전시관에서 사진을 몇 개 삭제해 주세요.");
+                alert("저장 공간이 부족합니다! 오래된 사진을 삭제해 주세요.");
                 btn.disabled = false;
                 btn.innerText = "전시관 등록";
             }
@@ -380,7 +479,7 @@
                     grid.appendChild(div);
                 });
             } else {
-                grid.innerHTML = '<p class="col-span-full text-center text-slate-500 py-32 text-3xl italic">아직 등록된 사진이 없습니다.</p>';
+                grid.innerHTML = '<p class="col-span-full text-center text-slate-500 py-32 text-3xl italic font-bold">아직 등록된 사진이 없습니다.</p>';
             }
         }
 
@@ -399,13 +498,12 @@
         }
 
         function clearPhotos() {
-            if (confirm("정말 모든 사진을 삭제할까요?")) {
+            if (confirm("모든 사진 기록을 삭제하고 전시관을 비울까요?")) {
                 localStorage.removeItem('my_spotlight_photos');
                 showGallery();
             }
         }
 
-        // 초기 버튼 연결
         document.getElementById('btn-start').onclick = startCamera;
         document.getElementById('btn-gallery').onclick = showGallery;
         document.getElementById('saveBtn').onclick = saveToLocalGallery;
