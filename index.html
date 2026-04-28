@@ -31,12 +31,17 @@
             position: relative;
         }
 
-        .mirror-container {
+        /* 카메라 컨테이너 - 전체 화면 */
+        .camera-view {
+            position: relative;
             width: 100%;
             height: 100%;
-            transform: scaleX(-1);
-            position: relative;
             background: #000;
+            overflow: hidden;
+        }
+
+        .mirror-flip {
+            transform: scaleX(-1);
         }
 
         video, canvas {
@@ -45,7 +50,7 @@
             left: 0;
             width: 100%;
             height: 100%;
-            object-fit: fill; 
+            object-fit: cover; /* 화면을 꽉 채우도록 설정 */
         }
 
         .btn-large {
@@ -62,7 +67,7 @@
             z-index: 30;
         }
 
-        .top-ui {
+        .ui-panel {
             position: absolute;
             top: 1.5rem;
             right: 1.5rem;
@@ -79,20 +84,15 @@
             font-size: 1.5rem;
             font-weight: bold;
             box-shadow: 0 6px 15px rgba(0,0,0,0.4);
-            cursor: pointer;
         }
 
-        /* 갤러리 카드 스타일 */
         .photo-card {
             background: #334155;
             padding: 10px;
             border-radius: 1.5rem;
             border: 3px solid #475569;
-            transition: transform 0.2s;
         }
-        .photo-card:hover { transform: scale(1.02); }
 
-        /* 커스텀 스크롤바 */
         .custom-scroll::-webkit-scrollbar { width: 12px; }
         .custom-scroll::-webkit-scrollbar-track { background: #1e293b; }
         .custom-scroll::-webkit-scrollbar-thumb { background: #475569; border-radius: 10px; }
@@ -101,43 +101,43 @@
 <body>
 
     <div id="app">
-        <!-- 시작 화면 -->
+        <!-- 1. 시작 화면 -->
         <div id="step-start" class="flex-1 flex flex-col items-center justify-center p-10 text-center space-y-10 z-10 bg-slate-900">
             <div class="space-y-4">
                 <div class="text-[10rem] md:text-[12rem] leading-none">📸</div>
                 <h1 class="text-7xl md:text-[10rem] font-extrabold text-red-500 tracking-tighter uppercase leading-tight">Spotlight</h1>
-                <h2 class="text-3xl md:text-5xl text-slate-300">전자칠판 포토존 (로컬 보관)</h2>
+                <h2 class="text-3xl md:text-5xl text-slate-300">전자칠판 포토존 (무설치 버전)</h2>
             </div>
             
             <div class="flex flex-col md:flex-row gap-8 justify-center pt-6 w-full max-w-4xl px-4">
-                <button onclick="startCamera()" class="btn-large flex-1 bg-red-500 hover:bg-red-600 text-white text-4xl md:text-5xl py-8 rounded-[2.5rem] shadow-2xl font-bold border-b-8 border-red-800">
+                <button id="btn-start" class="btn-large flex-1 bg-red-500 hover:bg-red-600 text-white text-4xl md:text-5xl py-8 rounded-[2.5rem] shadow-2xl font-bold border-b-8 border-red-800">
                     게임 시작
                 </button>
-                <button onclick="showGallery()" class="btn-large flex-1 bg-blue-600 hover:bg-blue-700 text-white text-4xl md:text-5xl py-8 rounded-[2.5rem] shadow-2xl font-bold border-b-8 border-blue-800">
+                <button id="btn-gallery" class="btn-large flex-1 bg-blue-600 hover:bg-blue-700 text-white text-4xl md:text-5xl py-8 rounded-[2.5rem] shadow-2xl font-bold border-b-8 border-blue-800">
                     전시관 보기
                 </button>
             </div>
             
-            <button onclick="window.handleFullscreen()" class="bg-slate-700 hover:bg-slate-600 text-white text-xl px-8 py-3 rounded-full border-2 border-slate-500 transition-all">
+            <button onclick="toggleFullscreen()" class="bg-slate-700 hover:bg-slate-600 text-white text-xl px-8 py-3 rounded-full border-2 border-slate-500 transition-all">
                 🖥️ 모니터 전체 화면으로 전환하기
             </button>
         </div>
 
-        <!-- 게임 화면 -->
+        <!-- 2. 게임 화면 -->
         <div id="step-game" class="hidden h-full w-full">
-            <div class="top-ui">
-                <button class="ui-btn" onclick="window.exitToHome()">종료 ✖</button>
+            <div class="ui-panel">
+                <button class="ui-btn" onclick="exitToHome()">종료 ✖</button>
             </div>
-            <div class="mirror-container">
-                <video id="video" autoplay playsinline muted></video>
-                <canvas id="gameCanvas"></canvas>
+            <div class="camera-view" id="camera-container">
+                <video id="video" autoplay playsinline muted class="mirror-flip"></video>
+                <canvas id="gameCanvas" class="mirror-flip"></canvas>
                 <div id="countdown-overlay" class="absolute inset-0 flex items-center justify-center pointer-events-none">
                     <span id="countdown" class="font-black italic"></span>
                 </div>
             </div>
         </div>
 
-        <!-- 결과 화면 -->
+        <!-- 3. 결과 화면 -->
         <div id="step-result" class="hidden flex-1 flex flex-col items-center justify-center p-8 text-center space-y-8 z-10 bg-slate-900">
             <h2 class="text-5xl font-bold text-yellow-400">포착된 순간! ✨</h2>
             <div class="relative inline-block border-[12px] border-white rounded-[2.5rem] shadow-2xl overflow-hidden bg-black max-w-[85%] max-h-[60vh]">
@@ -145,21 +145,21 @@
             </div>
             <div class="flex gap-8 justify-center pt-2 w-full max-w-3xl">
                 <button onclick="startCamera()" class="flex-1 bg-slate-600 hover:bg-slate-500 text-white py-6 rounded-2xl text-3xl font-bold btn-large">다시 하기</button>
-                <button id="saveBtn" onclick="saveToLocalGallery()" class="flex-1 bg-green-600 hover:bg-green-700 text-white py-6 rounded-2xl text-3xl font-bold btn-large shadow-xl border-b-8 border-green-900">전시관 등록</button>
+                <button id="saveBtn" class="flex-1 bg-green-600 hover:bg-green-700 text-white py-6 rounded-2xl text-3xl font-bold btn-large shadow-xl border-b-8 border-green-900">전시관 등록</button>
             </div>
         </div>
 
-        <!-- 전시관 (로컬 버전) -->
+        <!-- 4. 전시관 화면 -->
         <div id="step-gallery" class="hidden h-full flex flex-col p-8 space-y-6 z-10 bg-slate-900">
             <div class="flex justify-between items-center border-b-6 border-slate-700 pb-6">
-                <h2 class="text-5xl font-bold text-blue-400">🖼️ 실시간 전시관 (이 기기 전용)</h2>
+                <h2 class="text-5xl font-bold text-blue-400">🖼️ 실시간 전시관 (이 기기 저장)</h2>
                 <div class="flex gap-4">
-                    <button onclick="clearAllPhotos()" class="bg-slate-700 px-6 py-2 rounded-xl text-lg text-red-400">전체 삭제</button>
-                    <button onclick="window.exitToHome()" class="bg-red-500 hover:bg-red-600 text-white text-2xl px-10 py-3 rounded-xl font-bold btn-large shadow-lg">종료</button>
+                    <button onclick="clearPhotos()" class="bg-slate-700 px-6 py-2 rounded-xl text-lg text-red-400">전체 삭제</button>
+                    <button onclick="exitToHome()" class="bg-red-500 hover:bg-red-600 text-white text-2xl px-10 py-4 rounded-xl font-bold btn-large shadow-lg">종료</button>
                 </div>
             </div>
             <div id="gallery-grid" class="flex-1 grid grid-cols-2 lg:grid-cols-3 gap-8 overflow-y-auto p-4 custom-scroll">
-                <!-- 사진이 여기에 뜹니다 -->
+                <!-- 사진이 로드됩니다 -->
             </div>
             <div class="text-center pb-6">
                 <button onclick="startCamera()" class="bg-red-500 text-white px-16 py-6 rounded-full text-4xl font-bold shadow-2xl btn-large border-b-8 border-red-900">나도 찍으러 가기</button>
@@ -179,13 +179,12 @@
         let countdownValue = 5;
         let isCaptured = false;
 
-        // 화면 전환 함수
-        window.switchStep = (stepId) => {
+        function switchStep(stepId) {
             ['step-start', 'step-game', 'step-result', 'step-gallery'].forEach(id => document.getElementById(id).classList.add('hidden'));
             document.getElementById(stepId).classList.remove('hidden');
-        };
+        }
 
-        window.handleFullscreen = () => {
+        function toggleFullscreen() {
             const doc = document.documentElement;
             if (!document.fullscreenElement) {
                 if (doc.requestFullscreen) doc.requestFullscreen();
@@ -193,32 +192,35 @@
             } else {
                 if (document.exitFullscreen) document.exitFullscreen();
             }
-        };
+        }
 
         function syncCanvasSize() {
-            gameCanvas.width = window.innerWidth;
-            gameCanvas.height = window.innerHeight;
-            if (spotlight.x === 0) {
+            const container = document.getElementById('camera-container');
+            if (!container) return;
+            gameCanvas.width = container.offsetWidth;
+            gameCanvas.height = container.offsetHeight;
+            
+            if (spotlight.x === 0 || spotlight.x > gameCanvas.width) {
                 spotlight.x = gameCanvas.width / 2;
                 spotlight.y = gameCanvas.height / 2;
             }
-            spotlight.baseR = Math.min(gameCanvas.width, gameCanvas.height) / 4.5;
+            spotlight.baseR = Math.min(gameCanvas.width, gameCanvas.height) / 5;
         }
 
         window.addEventListener('resize', syncCanvasSize);
 
-        window.exitToHome = () => {
+        function exitToHome() {
             isCaptured = true;
             cancelAnimationFrame(animationId);
             if (video.srcObject) {
                 video.srcObject.getTracks().forEach(t => t.stop());
                 video.srcObject = null;
             }
-            window.switchStep('step-start');
-        };
+            switchStep('step-start');
+        }
 
-        window.startCamera = async () => {
-            window.handleFullscreen();
+        async function startCamera() {
+            toggleFullscreen();
             try {
                 isCaptured = false;
                 countdownValue = 5;
@@ -227,17 +229,17 @@
                     audio: false 
                 });
                 video.srcObject = stream;
-                window.switchStep('step-game');
+                switchStep('step-game');
                 video.onloadedmetadata = () => {
                     video.play();
-                    syncCanvasSize();
+                    setTimeout(syncCanvasSize, 100);
                     startGameLoop();
                     startCountdown();
                 };
             } catch (err) {
                 alert("카메라 실행 실패: " + err.message);
             }
-        };
+        }
 
         function startGameLoop() {
             if (isCaptured) return;
@@ -253,7 +255,12 @@
             if (spotlight.y + spotlight.r > h) { spotlight.y = h - spotlight.r; spotlight.dy *= -1; }
 
             spotlight.phase += 0.05;
-            spotlight.r = spotlight.baseR + Math.sin(spotlight.phase) * (spotlight.baseR * 0.5);
+            spotlight.r = spotlight.baseR + Math.sin(spotlight.phase) * (spotlight.baseR * 0.4);
+
+            if (Math.random() < 0.03) { 
+                spotlight.dx = (Math.random() - 0.5) * 22; 
+                spotlight.dy = (Math.random() - 0.5) * 22; 
+            }
 
             gCtx.clearRect(0, 0, w, h);
             gCtx.fillStyle = "rgba(0, 0, 0, 0.95)";
@@ -266,7 +273,7 @@
             
             gCtx.globalCompositeOperation = 'source-over';
             gCtx.strokeStyle = "white";
-            gCtx.lineWidth = 10;
+            gCtx.lineWidth = 12;
             gCtx.beginPath(); 
             gCtx.arc(spotlight.x, spotlight.y, spotlight.r, 0, Math.PI * 2); 
             gCtx.stroke();
@@ -297,20 +304,19 @@
             resultCanvas.width = video.videoWidth;
             resultCanvas.height = video.videoHeight;
             
+            // 거울 모드로 촬영
             rCtx.save();
             rCtx.translate(resultCanvas.width, 0);
             rCtx.scale(-1, 1);
             rCtx.drawImage(video, 0, 0, resultCanvas.width, resultCanvas.height);
             rCtx.restore();
             
+            // 스포트라이트 합성 (좌표 보정)
             const scaleX = resultCanvas.width / gameCanvas.width;
             const scaleY = resultCanvas.height / gameCanvas.height;
-            
             const mask = document.createElement('canvas');
-            mask.width = resultCanvas.width; 
-            mask.height = resultCanvas.height;
+            mask.width = resultCanvas.width; mask.height = resultCanvas.height;
             const mCtx = mask.getContext('2d');
-            
             mCtx.fillStyle = "rgba(0,0,0,0.95)"; 
             mCtx.fillRect(0, 0, mask.width, mask.height);
             mCtx.globalCompositeOperation = 'destination-out';
@@ -320,85 +326,90 @@
             mCtx.fill();
             
             rCtx.drawImage(mask, 0, 0);
-            window.switchStep('step-result');
-            document.getElementById('saveBtn').disabled = false;
-            document.getElementById('saveBtn').innerText = "전시관 등록";
+            switchStep('step-result');
+            
+            const sBtn = document.getElementById('saveBtn');
+            sBtn.disabled = false;
+            sBtn.innerText = "전시관 등록";
         }
 
-        // --- 로컬 저장소 로직 ---
-
-        window.saveToLocalGallery = () => {
+        // --- 로컬 저장소 (DB 없이 저장) ---
+        function saveToLocalGallery() {
             const btn = document.getElementById('saveBtn');
             btn.disabled = true;
             btn.innerText = "저장 중...";
 
-            const imageData = resultCanvas.toDataURL('image/jpeg', 0.8);
+            // 용량을 줄이기 위해 품질을 0.5로 조정
+            const imageData = resultCanvas.toDataURL('image/jpeg', 0.5);
             
-            // 기존 데이터 가져오기
-            let photos = JSON.parse(localStorage.getItem('spotlight_photos') || '[]');
-            
-            // 새 사진 추가 (최신순을 위해 앞에 추가)
-            photos.unshift({
-                id: Date.now(),
-                img: imageData
-            });
-
-            // 최대 40장까지만 저장 (용량 제한 방지)
-            if (photos.length > 40) photos = photos.slice(0, 40);
-
-            // 로컬 저장소에 저장
             try {
-                localStorage.setItem('spotlight_photos', JSON.stringify(photos));
+                let photos = JSON.parse(localStorage.getItem('my_spotlight_photos') || '[]');
+                photos.unshift({ id: Date.now(), img: imageData });
                 
-                // 저장 성공 후 즉시 전시관으로 이동하여 확인 가능하게 함
-                setTimeout(() => {
-                    window.showGallery();
-                }, 500);
+                // 최대 50장 보관 (브라우저 용량 제한 대응)
+                if (photos.length > 50) photos = photos.slice(0, 50);
+                
+                localStorage.setItem('my_spotlight_photos', JSON.stringify(photos));
+                
+                // 저장 즉시 전시관으로 이동하여 확인
+                showGallery();
             } catch (e) {
-                alert("저장 공간이 부족합니다. 전시관에서 이전 사진들을 삭제해 주세요.");
+                alert("저장 공간이 부족합니다! 전시관에서 사진을 몇 개 삭제해 주세요.");
                 btn.disabled = false;
                 btn.innerText = "전시관 등록";
             }
-        };
+        }
 
-        window.showGallery = () => {
-            window.switchStep('step-gallery');
+        function showGallery() {
+            switchStep('step-gallery');
             const grid = document.getElementById('gallery-grid');
-            const empty = document.getElementById('gallery-empty');
-            
-            const photos = JSON.parse(localStorage.getItem('spotlight_photos') || '[]');
+            const photos = JSON.parse(localStorage.getItem('my_spotlight_photos') || '[]');
             
             if (photos.length > 0) {
-                empty.classList.add('hidden');
                 grid.innerHTML = '';
                 photos.forEach(p => {
                     const div = document.createElement('div');
-                    div.className = "photo-card flex flex-col gap-3";
+                    div.className = "photo-card space-y-3";
                     div.innerHTML = `
                         <img src="${p.img}" class="w-full h-auto rounded-xl">
-                        <button onclick="downloadOne('${p.img}')" class="bg-blue-500 py-2 rounded-lg font-bold">사진 다운로드</button>
+                        <div class="flex gap-2">
+                            <button onclick="downloadImg('${p.img}')" class="flex-1 bg-blue-500 py-2 rounded-lg font-bold text-sm">기기 저장</button>
+                            <button onclick="deleteImg(${p.id})" class="bg-gray-600 px-3 py-2 rounded-lg font-bold text-sm">삭제</button>
+                        </div>
                     `;
                     grid.appendChild(div);
                 });
             } else {
-                empty.classList.remove('hidden');
-                grid.innerHTML = '';
+                grid.innerHTML = '<p class="col-span-full text-center text-slate-500 py-32 text-3xl italic">아직 등록된 사진이 없습니다.</p>';
             }
-        };
+        }
 
-        window.downloadOne = (data) => {
-            const link = document.createElement('a');
-            link.href = data;
-            link.download = `spotlight_${Date.now()}.jpg`;
-            link.click();
-        };
+        function downloadImg(data) {
+            const a = document.createElement('a');
+            a.href = data;
+            a.download = `spotlight_${Date.now()}.jpg`;
+            a.click();
+        }
 
-        window.clearAllPhotos = () => {
-            if (confirm("정말로 모든 사진 기록을 삭제할까요?")) {
-                localStorage.removeItem('spotlight_photos');
-                window.showGallery();
+        function deleteImg(id) {
+            let photos = JSON.parse(localStorage.getItem('my_spotlight_photos') || '[]');
+            photos = photos.filter(p => p.id !== id);
+            localStorage.setItem('my_spotlight_photos', JSON.stringify(photos));
+            showGallery();
+        }
+
+        function clearPhotos() {
+            if (confirm("정말 모든 사진을 삭제할까요?")) {
+                localStorage.removeItem('my_spotlight_photos');
+                showGallery();
             }
-        };
+        }
+
+        // 초기 버튼 연결
+        document.getElementById('btn-start').onclick = startCamera;
+        document.getElementById('btn-gallery').onclick = showGallery;
+        document.getElementById('saveBtn').onclick = saveToLocalGallery;
+
     </script>
 </body>
 </html>
