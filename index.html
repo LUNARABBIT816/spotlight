@@ -3,44 +3,55 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>스포트라이트 챌린지 - 전자칠판 최적화</title>
+    <title>스포트라이트 챌린지</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Jua&display=swap');
         
         body {
             font-family: 'Jua', sans-serif;
-            background-color: #0f172a;
+            background-color: #000;
             color: white;
             margin: 0;
             padding: 0;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            min-height: 100vh;
             overflow: hidden;
             width: 100vw;
+            height: 100vh;
         }
 
         #app {
             width: 100%;
-            height: 100vh;
-            background-color: #1e293b;
+            height: 100%;
             display: flex;
             flex-direction: column;
             position: relative;
         }
 
+        /* 카메라 컨테이너 - 전체 화면 점유 */
         .camera-container {
-            position: relative;
+            position: absolute;
+            top: 0;
+            left: 0;
             width: 100%;
             height: 100%;
-            overflow: hidden;
             background: #000;
         }
         
-        .mirror-flip {
+        /* 거울 모드 일괄 적용 */
+        .mirror-container {
+            width: 100%;
+            height: 100%;
             transform: scaleX(-1);
+        }
+
+        video, canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            /* 화면에 꽉 채우기 위해 fill 사용 (좌표 계산 일치를 위함) */
+            object-fit: fill; 
         }
 
         .btn-large {
@@ -54,6 +65,7 @@
         #countdown-overlay { 
             text-shadow: 0 0 60px rgba(239, 68, 68, 0.9);
             font-size: clamp(10rem, 35vw, 25rem);
+            z-index: 30;
         }
 
         .top-ui {
@@ -98,7 +110,7 @@
 
     <div id="app">
         <!-- 시작 화면 -->
-        <div id="step-start" class="flex-1 flex flex-col items-center justify-center p-10 text-center space-y-10">
+        <div id="step-start" class="flex-1 flex flex-col items-center justify-center p-10 text-center space-y-10 z-10 bg-slate-900">
             <div class="space-y-4">
                 <div class="text-[10rem] md:text-[12rem] leading-none">📸</div>
                 <h1 class="text-7xl md:text-[10rem] font-extrabold text-red-500 tracking-tighter uppercase leading-tight">Spotlight</h1>
@@ -119,38 +131,36 @@
             </button>
         </div>
 
-        <!-- 에러 가이드 -->
+        <!-- 가이드 -->
         <div id="camera-guide">
-            <h2 class="text-4xl font-bold text-red-500 mb-6">카메라가 나오지 않나요?</h2>
+            <h2 class="text-4xl font-bold text-red-500 mb-6">카메라 오류가 발생했습니다</h2>
             <div id="error-message" class="bg-red-900/30 p-5 rounded-2xl mb-6 text-red-200 font-mono text-lg"></div>
-            <div class="text-xl text-slate-300 space-y-4 text-left mb-8">
-                <p>• 주소창 왼쪽의 <b>'자물쇠 🔒'</b> 아이콘을 눌러주세요.</p>
-                <p>• <b>'카메라'</b> 항목을 <b>'허용'</b>으로 설정하세요.</p>
-                <p>• 페이지를 <b>새로고침(F5)</b> 하시면 즉시 해결됩니다!</p>
-            </div>
-            <button onclick="document.getElementById('camera-guide').style.display='none'" class="bg-slate-700 text-white px-8 py-3 rounded-xl text-xl">닫기</button>
+            <button onclick="location.reload()" class="bg-red-500 text-white px-8 py-3 rounded-xl text-xl">새로고침</button>
         </div>
 
         <!-- 게임 화면 -->
-        <div id="step-game" class="hidden h-full">
+        <div id="step-game" class="hidden h-full w-full">
             <div class="top-ui">
                 <button class="ui-btn bg-slate-700" onclick="window.handleFullscreen()">전체화면</button>
                 <button class="ui-btn" onclick="window.exitToHome()">종료 ✖</button>
             </div>
-            <div class="camera-container" id="camera-container">
-                <video id="video" autoplay playsinline muted class="mirror-flip absolute inset-0 w-full h-full object-cover"></video>
-                <canvas id="gameCanvas" class="mirror-flip absolute inset-0 w-full h-full z-10"></canvas>
-                <div id="countdown-overlay" class="absolute inset-0 flex items-center justify-center z-20 pointer-events-none">
+            <div class="camera-container">
+                <div class="mirror-container">
+                    <video id="video" autoplay playsinline muted></video>
+                    <canvas id="gameCanvas"></canvas>
+                </div>
+                <div id="countdown-overlay" class="absolute inset-0 flex items-center justify-center pointer-events-none">
                     <span id="countdown" class="font-black italic"></span>
                 </div>
             </div>
         </div>
 
         <!-- 결과 화면 -->
-        <div id="step-result" class="hidden flex-1 flex flex-col items-center justify-center p-8 text-center space-y-8">
+        <div id="step-result" class="hidden flex-1 flex flex-col items-center justify-center p-8 text-center space-y-8 z-10 bg-slate-900">
             <h2 class="text-5xl font-bold text-yellow-400">포착된 순간! ✨</h2>
             <div class="relative inline-block border-[12px] border-white rounded-[2.5rem] shadow-2xl overflow-hidden bg-black max-w-[85%] max-h-[60vh]">
-                <canvas id="resultCanvas" class="mirror-flip w-full h-full object-contain"></canvas>
+                <!-- 저장될 때 거울 모드가 적용되므로 결과창은 그대로 표시 -->
+                <canvas id="resultCanvas" class="w-full h-full object-contain"></canvas>
             </div>
             <div class="flex gap-8 justify-center pt-2 w-full max-w-3xl">
                 <button id="retryBtn" class="flex-1 bg-slate-600 hover:bg-slate-500 text-white py-6 rounded-2xl text-3xl font-bold btn-large">다시 하기</button>
@@ -159,13 +169,13 @@
         </div>
 
         <!-- 전시관 -->
-        <div id="step-gallery" class="hidden h-full flex flex-col p-8 space-y-6">
+        <div id="step-gallery" class="hidden h-full flex flex-col p-8 space-y-6 z-10 bg-slate-900">
             <div class="flex justify-between items-center border-b-6 border-slate-700 pb-6">
                 <h2 class="text-5xl font-bold text-blue-400">🖼️ 실시간 전시관</h2>
                 <button onclick="window.exitToHome()" class="bg-red-500 hover:bg-red-600 text-white text-2xl px-10 py-4 rounded-xl font-bold btn-large shadow-lg">종료</button>
             </div>
-            <div id="gallery-grid" class="flex-1 grid grid-cols-2 lg:grid-cols-3 gap-8 overflow-y-auto p-4 custom-scrollbar">
-                <p id="gallery-empty" class="col-span-full text-center text-slate-500 py-32 text-3xl italic">아직 사진이 없습니다.</p>
+            <div id="gallery-grid" class="flex-1 grid grid-cols-2 lg:grid-cols-3 gap-8 overflow-y-auto p-4">
+                <p id="gallery-empty" class="col-span-full text-center text-slate-500 py-32 text-3xl italic">사진을 등록해 보세요!</p>
             </div>
             <div class="text-center pb-6">
                 <button id="galleryStartBtn" class="bg-red-500 text-white px-16 py-6 rounded-full text-4xl font-bold shadow-2xl btn-large border-b-8 border-red-900">나도 찍으러 가기</button>
@@ -178,7 +188,7 @@
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, addDoc, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        let db = null, auth = null, appId = 'spotlight-fixed';
+        let db = null, auth = null, appId = 'spotlight-fixed-v2';
         let user = null;
         let galleryUnsubscribe = null;
         const video = document.getElementById('video');
@@ -199,7 +209,7 @@
                     const app = initializeApp(config);
                     auth = getAuth(app);
                     db = getFirestore(app);
-                    appId = typeof __app_id !== 'undefined' ? __app_id : 'spotlight-fixed';
+                    appId = typeof __app_id !== 'undefined' ? __app_id : 'spotlight-fixed-v2';
                     if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) await signInWithCustomToken(auth, __initial_auth_token);
                     else await signInAnonymously(auth);
                     onAuthStateChanged(auth, (u) => { user = u; });
@@ -225,18 +235,14 @@
             } catch (e) { console.error(e); }
         };
 
+        // 캔버스 크기를 내부 해상도와 일치시킴
         function syncCanvasSize() {
-            const container = document.getElementById('camera-container');
-            if (!container) return;
-            // 캔버스 해상도를 화면 표시 크기와 1:1로 맞춤
-            gameCanvas.width = container.offsetWidth;
-            gameCanvas.height = container.offsetHeight;
+            gameCanvas.width = window.innerWidth;
+            gameCanvas.height = window.innerHeight;
             
-            // 처음 실행 시 중앙 배치
-            if (spotlight.x === 0) {
-                spotlight.x = gameCanvas.width / 2;
-                spotlight.y = gameCanvas.height / 2;
-            }
+            if (spotlight.x === 0 || spotlight.x > gameCanvas.width) spotlight.x = gameCanvas.width / 2;
+            if (spotlight.y === 0 || spotlight.y > gameCanvas.height) spotlight.y = gameCanvas.height / 2;
+            
             spotlight.baseR = Math.min(gameCanvas.width, gameCanvas.height) / 4.5;
         }
 
@@ -255,8 +261,6 @@
 
         window.startCamera = async () => {
             window.handleFullscreen();
-            document.getElementById('camera-guide').style.display = 'none';
-
             try {
                 isCaptured = false;
                 countdownValue = 5;
@@ -270,8 +274,7 @@
                 
                 video.onloadedmetadata = () => {
                     video.play();
-                    // 레이아웃이 확정된 후 크기 동기화
-                    setTimeout(syncCanvasSize, 100); 
+                    syncCanvasSize();
                     startGameLoop();
                     startCountdown();
                 };
@@ -284,13 +287,13 @@
         function startGameLoop() {
             if (isCaptured) return;
             
-            // 화면 밖으로 나가지 않도록 실시간 캔버스 크기 체크
             const w = gameCanvas.width;
             const h = gameCanvas.height;
 
             spotlight.x += spotlight.dx; 
             spotlight.y += spotlight.dy;
 
+            // 바운스 체크 및 위치 강제 보정
             if (spotlight.x - spotlight.r < 0) { spotlight.x = spotlight.r; spotlight.dx *= -1; }
             if (spotlight.x + spotlight.r > w) { spotlight.x = w - spotlight.r; spotlight.dx *= -1; }
             if (spotlight.y - spotlight.r < 0) { spotlight.y = spotlight.r; spotlight.dy *= -1; }
@@ -343,16 +346,21 @@
             isCaptured = true;
             cancelAnimationFrame(animationId);
             
-            // 결과 사진용 캔버스 설정
+            // 결과 사진용 캔버스 설정 (비디오 해상도와 일치)
             resultCanvas.width = video.videoWidth;
             resultCanvas.height = video.videoHeight;
             
-            // 원본 영상 그리기
-            rCtx.drawImage(video, 0, 0);
+            // 1. 거울 모드 적용하여 그리기
+            rCtx.save();
+            rCtx.translate(resultCanvas.width, 0);
+            rCtx.scale(-1, 1);
+            rCtx.drawImage(video, 0, 0, resultCanvas.width, resultCanvas.height);
+            rCtx.restore();
             
-            // 스포트라이트 좌표 보정 (화면 비율 대응)
-            const scaleX = video.videoWidth / gameCanvas.width;
-            const scaleY = video.videoHeight / gameCanvas.height;
+            // 2. 스포트라이트 마스크 생성
+            // 화면 비율(CSS stretch)을 고려한 좌표 보정
+            const scaleX = resultCanvas.width / gameCanvas.width;
+            const scaleY = resultCanvas.height / gameCanvas.height;
             
             const mask = document.createElement('canvas');
             mask.width = resultCanvas.width; 
@@ -363,7 +371,9 @@
             mCtx.fillRect(0, 0, mask.width, mask.height);
             mCtx.globalCompositeOperation = 'destination-out';
             mCtx.beginPath(); 
-            mCtx.arc(spotlight.x * scaleX, spotlight.y * scaleY, spotlight.r * Math.max(scaleX, scaleY), 0, Math.PI * 2); 
+            // 거울 모드이므로 x좌표 반전 필요
+            const invX = gameCanvas.width - spotlight.x;
+            mCtx.arc(invX * scaleX, spotlight.y * scaleY, spotlight.r * Math.max(scaleX, scaleY), 0, Math.PI * 2); 
             mCtx.fill();
             
             rCtx.drawImage(mask, 0, 0);
@@ -375,19 +385,9 @@
             const btn = document.getElementById('uploadBtn');
             btn.disabled = true; btn.innerText = "...";
             
-            const finalCanvas = document.createElement('canvas');
-            finalCanvas.width = resultCanvas.width; 
-            finalCanvas.height = resultCanvas.height;
-            const fCtx = finalCanvas.getContext('2d');
-            
-            // 좌우 반전 복구하여 저장
-            fCtx.translate(finalCanvas.width, 0);
-            fCtx.scale(-1, 1);
-            fCtx.drawImage(resultCanvas, 0, 0);
-            
             try {
                 await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'photos'), {
-                    image: finalCanvas.toDataURL('image/jpeg', 0.8), 
+                    image: resultCanvas.toDataURL('image/jpeg', 0.8), 
                     createdAt: serverTimestamp(), 
                     userId: user.uid
                 });
