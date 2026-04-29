@@ -83,6 +83,7 @@
             font-size: 1.5rem;
             font-weight: bold;
             box-shadow: 0 6px 15px rgba(0,0,0,0.4);
+            cursor: pointer;
         }
 
         .photo-card {
@@ -122,8 +123,8 @@
             <div class="space-y-4">
                 <div class="text-[10rem] md:text-[12rem] leading-none animate-bounce">📸</div>
                 <h1 class="text-7xl md:text-[10rem] font-extrabold text-red-500 tracking-tighter uppercase leading-tight">Spotlight</h1>
-                <h2 class="text-3xl md:text-5xl text-slate-300 font-bold">스포트라이트 챌린지</h2>
-                <p class="text-xl text-slate-400">원 안에 들어가 사진을 찍어 보세요!</p>
+                <h2 class="text-3xl md:text-5xl text-slate-300 font-bold">실시간 공유 포토존</h2>
+                <p class="text-xl text-slate-400">다른 기기에서도 우리 학교 사진을 동시에 볼 수 있어요!</p>
             </div>
             
             <div class="flex flex-col md:flex-row gap-8 justify-center pt-6 w-full max-w-4xl px-4">
@@ -161,6 +162,7 @@
                 <p class="text-xl text-slate-300">이 사진을 클라우드 전시관에 등록할까요?</p>
             </div>
             <div class="relative inline-block border-[12px] border-white rounded-[2.5rem] shadow-2xl overflow-hidden bg-black max-w-[85%] max-h-[60vh]">
+                <!-- 사진 결과물 캔버스 -->
                 <canvas id="resultCanvas" class="w-full h-full object-contain"></canvas>
             </div>
             <div class="flex gap-8 justify-center pt-2 w-full max-w-3xl">
@@ -190,7 +192,7 @@
         import { getFirestore, collection, addDoc, onSnapshot, serverTimestamp, query } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // --- Firebase 구성 정보 설정 ---
-        // 1. 파이어베이스 콘솔에서 복사한 구성을 아래 manualConfig의 { } 사이에 붙여넣으세요.
+        // 선생님께서 제공해주신 API 키를 적용했습니다.
         const manualConfig = {
             apiKey: "AIzaSyC2k6y4zZVwKlM8tpBfxwQBAscHGk3LKPA",
             authDomain: "spotlight-challange.firebaseapp.com",
@@ -201,11 +203,10 @@
             measurementId: "G-41BQH3H7MG"
         };
 
-        // 환경 변수가 있으면 사용하고, 없으면 수동 설정을 사용함
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : manualConfig;
+        const firebaseConfig = typeof __firebase_config !== 'undefined' && __firebase_config ? JSON.parse(__firebase_config) : manualConfig;
         
         if (!firebaseConfig.apiKey) {
-            console.error("Firebase 설정이 누락되었습니다. index.html 코드 상단의 manualConfig 부분을 확인하세요.");
+            console.error("Firebase 설정이 누락되었습니다.");
         }
 
         const app = initializeApp(firebaseConfig);
@@ -287,7 +288,15 @@
             if (audioCtx.state === 'suspended') audioCtx.resume();
             try {
                 isCaptured = false; countdownValue = 5;
-                const stream = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false });
+                // 모바일 환경을 위해 전면 카메라(셀카 렌즈) 우선 적용
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { 
+                        width: { ideal: 1920 }, 
+                        height: { ideal: 1080 },
+                        facingMode: "user" 
+                    }, 
+                    audio: false 
+                });
                 video.srcObject = stream;
                 window.switchStep('step-game');
                 video.onloadedmetadata = () => { video.play(); setTimeout(syncCanvasSize, 100); startGameLoop(); startCountdown(); startSuspenseMusic(); };
@@ -302,6 +311,7 @@
             if (spotlight.y - spotlight.r < 0 || spotlight.y + spotlight.r > h) spotlight.dy *= -1;
             spotlight.phase += 0.05; spotlight.r = spotlight.baseR + Math.sin(spotlight.phase) * (spotlight.baseR * 0.4);
             if (Math.random() < 0.03) { spotlight.dx = (Math.random() - 0.5) * 25; spotlight.dy = (Math.random() - 0.5) * 25; }
+            
             gCtx.clearRect(0, 0, w, h);
             gCtx.fillStyle = "rgba(0, 0, 0, 0.95)"; gCtx.fillRect(0, 0, w, h);
             gCtx.globalCompositeOperation = 'destination-out'; gCtx.beginPath(); gCtx.arc(spotlight.x, spotlight.y, spotlight.r, 0, Math.PI * 2); gCtx.fill();
@@ -324,23 +334,63 @@
         function capturePhoto() {
             if (isCaptured) return; isCaptured = true; stopSuspenseMusic(); cancelAnimationFrame(animationId);
             playSound('shutter');
-            const flash = document.getElementById('flash'); flash.classList.add('flash-active');
+            
+            const flash = document.getElementById('flash'); 
+            flash.classList.add('flash-active');
             setTimeout(() => flash.classList.remove('flash-active'), 500);
 
-            resultCanvas.width = video.videoWidth; resultCanvas.height = video.videoHeight;
-            rCtx.save(); rCtx.translate(resultCanvas.width, 0); rCtx.scale(-1, 1); rCtx.drawImage(video, 0, 0); rCtx.restore();
+            // 기기별 비율 호환을 위해 캔버스 크기를 화면에 표시되는 크기와 1:1로 맞춤
+            const w = gameCanvas.width;
+            const h = gameCanvas.height;
+            resultCanvas.width = w; 
+            resultCanvas.height = h;
+
+            // object-fit: cover 효과를 계산하여 화면에 보이는 영역만 정확히 잘라냄
+            const videoRatio = video.videoWidth / video.videoHeight;
+            const screenRatio = w / h;
+            let drawW, drawH, drawX, drawY;
+
+            if (screenRatio > videoRatio) {
+                drawW = w; drawH = w / videoRatio; drawX = 0; drawY = (h - drawH) / 2;
+            } else {
+                drawH = h; drawW = h * videoRatio; drawX = (w - drawW) / 2; drawY = 0;
+            }
+
+            // 원본 영상 렌더링 (거울 모드 완벽 대응)
+            rCtx.save(); 
+            rCtx.translate(w, 0); 
+            rCtx.scale(-1, 1); 
+            rCtx.drawImage(video, drawX, drawY, drawW, drawH); 
+            rCtx.restore();
             
-            const scaleX = resultCanvas.width / gameCanvas.width, scaleY = resultCanvas.height / gameCanvas.height;
-            const mask = document.createElement('canvas'); mask.width = resultCanvas.width; mask.height = resultCanvas.height;
+            // 검은 배경 마스크 및 뚫기 작업
+            const mask = document.createElement('canvas'); 
+            mask.width = w; mask.height = h;
             const mCtx = mask.getContext('2d');
-            mCtx.fillStyle = "rgba(0,0,0,0.95)"; mCtx.fillRect(0, 0, mask.width, mask.height);
-            mCtx.globalCompositeOperation = 'destination-out'; mCtx.beginPath(); mCtx.arc((gameCanvas.width - spotlight.x) * scaleX, spotlight.y * scaleY, spotlight.r * Math.max(scaleX, scaleY), 0, Math.PI * 2); mCtx.fill();
+            mCtx.fillStyle = "rgba(0,0,0,0.95)"; 
+            mCtx.fillRect(0, 0, w, h);
+            mCtx.globalCompositeOperation = 'destination-out'; 
+            mCtx.beginPath(); 
+            // 시각적 위치에 정확히 맞추기 위해 x좌표 반전 (거울모드)
+            mCtx.arc(w - spotlight.x, spotlight.y, spotlight.r, 0, Math.PI * 2); 
+            mCtx.fill();
+            
             rCtx.drawImage(mask, 0, 0);
 
-            gCtx.clearRect(0,0,gameCanvas.width, gameCanvas.height);
-            gCtx.save(); gCtx.translate(gameCanvas.width, 0); gCtx.scale(-1, 1); gCtx.drawImage(resultCanvas, 0, 0, gameCanvas.width, gameCanvas.height); gCtx.restore();
+            // 📸 찰칵 후 미리보기 연출 (게임 화면에 결과 사진을 1초간 정지시켜 보여줌)
+            gCtx.clearRect(0, 0, w, h);
+            gCtx.save(); 
+            gCtx.translate(w, 0); 
+            gCtx.scale(-1, 1); 
+            gCtx.drawImage(resultCanvas, 0, 0, w, h); 
+            gCtx.restore();
 
-            setTimeout(() => { switchStep('step-result'); document.getElementById('saveBtn').disabled = false; document.getElementById('saveBtn').innerText = "전시관 등록"; }, 800);
+            // 1초 뒤에 최종 사진 확인창(결과창)으로 이동
+            setTimeout(() => { 
+                switchStep('step-result'); 
+                document.getElementById('saveBtn').disabled = false; 
+                document.getElementById('saveBtn').innerText = "전시관 등록"; 
+            }, 1000);
         }
 
         // --- 클라우드 공유 로직 ---
@@ -351,7 +401,7 @@
             try {
                 const colRef = collection(db, 'artifacts', appId, 'public', 'data', 'photos');
                 await addDoc(colRef, {
-                    image: resultCanvas.toDataURL('image/jpeg', 0.5),
+                    image: resultCanvas.toDataURL('image/jpeg', 0.6), // 용량 최적화
                     createdAt: serverTimestamp(),
                     userId: user.uid
                 });
