@@ -189,22 +189,42 @@
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, addDoc, onSnapshot, serverTimestamp, query } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // --- Firebase 초기화 (Gemini 환경 변수 자동 로드) ---
-        const firebaseConfig = JSON.parse(__firebase_config);
+        // --- Firebase 구성 정보 설정 ---
+        // 1. 파이어베이스 콘솔에서 복사한 구성을 아래 manualConfig의 { } 사이에 붙여넣으세요.
+        const manualConfig = {
+            apiKey: "AIzaSyC2k6y4zZVwKlM8tpBfxwQBAscHGk3LKPA",
+            authDomain: "spotlight-challange.firebaseapp.com",
+            projectId: "spotlight-challange",
+            storageBucket: "spotlight-challange.firebasestorage.app",
+            messagingSenderId: "61626863190",
+            appId: "1:61626863190:web:649d47c2f0f8703252b5f7",
+            measurementId: "G-41BQH3H7MG"
+        };
+
+        // 환경 변수가 있으면 사용하고, 없으면 수동 설정을 사용함
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : manualConfig;
+        
+        if (!firebaseConfig.apiKey) {
+            console.error("Firebase 설정이 누락되었습니다. index.html 코드 상단의 manualConfig 부분을 확인하세요.");
+        }
+
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'spotlight-live';
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'school-spotlight';
 
         let user = null;
         let galleryUnsubscribe = null;
 
-        // RULE 3: Auth Before Queries
         const initAuth = async () => {
-            if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                await signInWithCustomToken(auth, __initial_auth_token);
-            } else {
-                await signInAnonymously(auth);
+            try {
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    await signInAnonymously(auth);
+                }
+            } catch (e) {
+                console.error("Firebase 인증 실패:", e);
             }
         };
         initAuth();
@@ -219,7 +239,20 @@
             osc.connect(gain); gain.connect(audioCtx.destination);
             if (type === 'tick') { osc.frequency.setValueAtTime(440, audioCtx.currentTime); gain.gain.setValueAtTime(0.1, audioCtx.currentTime); osc.start(); osc.stop(audioCtx.currentTime + 0.1); }
             else if (type === 'final') { osc.frequency.setValueAtTime(880, audioCtx.currentTime); gain.gain.setValueAtTime(0.2, audioCtx.currentTime); osc.start(); osc.stop(audioCtx.currentTime + 0.3); }
-            else if (type === 'shutter') { const buffer = audioCtx.createBuffer(1, audioCtx.sampleRate * 0.1, audioCtx.sampleRate); const data = buffer.getChannelData(0); for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1; const src = audioCtx.createBufferSource(); src.buffer = buffer; const sg = audioCtx.createGain(); sg.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1); src.connect(sg); sg.connect(audioCtx.destination); src.start(); }
+            else if (type === 'shutter') { playShutterSound(); }
+        }
+
+        function playShutterSound() {
+            const buffer = audioCtx.createBuffer(1, audioCtx.sampleRate * 0.1, audioCtx.sampleRate);
+            const data = buffer.getChannelData(0);
+            for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+            const src = audioCtx.createBufferSource();
+            src.buffer = buffer;
+            const sg = audioCtx.createGain();
+            sg.gain.setValueAtTime(0.3, audioCtx.currentTime);
+            sg.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+            src.connect(sg); sg.connect(audioCtx.destination);
+            src.start();
         }
 
         let suspenseInterval;
@@ -258,7 +291,7 @@
                 video.srcObject = stream;
                 window.switchStep('step-game');
                 video.onloadedmetadata = () => { video.play(); setTimeout(syncCanvasSize, 100); startGameLoop(); startCountdown(); startSuspenseMusic(); };
-            } catch (err) { alert("카메라 권한을 허용해 주세요!"); }
+            } catch (err) { alert("카메라 권한을 확인해 주세요!"); }
         };
 
         function startGameLoop() {
@@ -310,13 +343,12 @@
             setTimeout(() => { switchStep('step-result'); document.getElementById('saveBtn').disabled = false; document.getElementById('saveBtn').innerText = "전시관 등록"; }, 800);
         }
 
-        // --- 클라우드 공유 로직 (Firebase) ---
+        // --- 클라우드 공유 로직 ---
         window.uploadToFirebase = async () => {
-            if (!user) return;
+            if (!user) { alert("로그인 중입니다. 잠시만 기다려주세요."); return; }
             const btn = document.getElementById('saveBtn');
             btn.disabled = true; btn.innerText = "전송 중...";
             try {
-                // RULE 1: Strict Paths
                 const colRef = collection(db, 'artifacts', appId, 'public', 'data', 'photos');
                 await addDoc(colRef, {
                     image: resultCanvas.toDataURL('image/jpeg', 0.5),
@@ -325,7 +357,7 @@
                 });
                 window.showGallery();
             } catch (e) {
-                alert("전송 실패: " + e.message);
+                alert("전송 실패: 파이어베이스 설정(Firestore 규칙 등)을 확인하세요.");
                 btn.disabled = false; btn.innerText = "전시관 등록";
             }
         };
@@ -334,18 +366,12 @@
             if (!user) return;
             window.switchStep('step-gallery');
             const grid = document.getElementById('gallery-grid');
-            const loading = document.getElementById('gallery-loading');
-            
             if (galleryUnsubscribe) galleryUnsubscribe();
 
-            // RULE 1: Strict Paths
             const q = collection(db, 'artifacts', appId, 'public', 'data', 'photos');
-            
             galleryUnsubscribe = onSnapshot(q, (snapshot) => {
                 const photos = [];
                 snapshot.forEach(doc => photos.push({ id: doc.id, ...doc.data() }));
-                
-                // RULE 2: No Complex Queries (Sort in memory)
                 photos.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
 
                 grid.innerHTML = '';
@@ -359,7 +385,7 @@
                 } else {
                     grid.innerHTML = '<p class="col-span-full text-center text-slate-500 py-32 text-3xl italic">아직 사진이 없습니다.</p>';
                 }
-            }, (err) => { console.error(err); });
+            }, (err) => { console.error("Firestore 오류:", err); });
         };
 
         // 전역 바인딩
