@@ -90,13 +90,13 @@
             padding: 10px;
             border-radius: 1.5rem;
             border: 3px solid #475569;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.3);
         }
 
         .custom-scroll::-webkit-scrollbar { width: 12px; }
         .custom-scroll::-webkit-scrollbar-track { background: #1e293b; }
         .custom-scroll::-webkit-scrollbar-thumb { background: #475569; border-radius: 10px; }
 
-        /* 셔터 플래시 효과 */
         #flash {
             position: fixed;
             top: 0;
@@ -108,13 +108,8 @@
             opacity: 0;
             pointer-events: none;
         }
-        .flash-active {
-            animation: flash-anim 0.5s ease-out;
-        }
-        @keyframes flash-anim {
-            0% { opacity: 1; }
-            100% { opacity: 0; }
-        }
+        .flash-active { animation: flash-anim 0.5s ease-out; }
+        @keyframes flash-anim { 0% { opacity: 1; } 100% { opacity: 0; } }
     </style>
 </head>
 <body>
@@ -127,7 +122,8 @@
             <div class="space-y-4">
                 <div class="text-[10rem] md:text-[12rem] leading-none animate-bounce">📸</div>
                 <h1 class="text-7xl md:text-[10rem] font-extrabold text-red-500 tracking-tighter uppercase leading-tight">Spotlight</h1>
-                <h2 class="text-3xl md:text-5xl text-slate-300">최후의 5초, 주인공이 되어보세요!</h2>
+                <h2 class="text-3xl md:text-5xl text-slate-300 font-bold">실시간 공유 포토존</h2>
+                <p class="text-xl text-slate-400">다른 기기에서도 우리 학교 사진을 동시에 볼 수 있어요!</p>
             </div>
             
             <div class="flex flex-col md:flex-row gap-8 justify-center pt-6 w-full max-w-4xl px-4">
@@ -140,7 +136,7 @@
             </div>
             
             <button onclick="toggleFullscreen()" class="bg-slate-700 hover:bg-slate-600 text-white text-xl px-12 py-4 rounded-full border-2 border-slate-500 transition-all shadow-lg">
-                🖥️ 전체 화면으로 즐기기
+                🖥️ 전체 화면으로 전환
             </button>
         </div>
 
@@ -162,7 +158,7 @@
         <div id="step-result" class="hidden flex-1 flex flex-col items-center justify-center p-8 text-center space-y-6 z-10 bg-slate-900">
             <div class="space-y-2">
                 <h2 class="text-4xl md:text-5xl font-bold text-yellow-400">나이스 샷! ✨</h2>
-                <p class="text-xl text-slate-300">이 사진을 전시관에 등록할까요?</p>
+                <p class="text-xl text-slate-300">이 사진을 클라우드 전시관에 등록할까요?</p>
             </div>
             <div class="relative inline-block border-[12px] border-white rounded-[2.5rem] shadow-2xl overflow-hidden bg-black max-w-[85%] max-h-[60vh]">
                 <canvas id="resultCanvas" class="w-full h-full object-contain"></canvas>
@@ -176,14 +172,11 @@
         <!-- 4. 전시관 화면 -->
         <div id="step-gallery" class="hidden h-full flex flex-col p-8 space-y-6 z-10 bg-slate-900">
             <div class="flex justify-between items-center border-b-6 border-slate-700 pb-6">
-                <h2 class="text-5xl font-bold text-blue-400">🖼️ 실시간 전시관</h2>
-                <div class="flex gap-4">
-                    <button onclick="clearPhotos()" class="bg-slate-700 px-6 py-2 rounded-xl text-lg text-red-400 font-bold hover:bg-slate-600">기록 초기화</button>
-                    <button onclick="exitToHome()" class="bg-red-500 hover:bg-red-600 text-white text-2xl px-10 py-3 rounded-xl font-bold btn-large shadow-lg">메인으로</button>
-                </div>
+                <h2 class="text-5xl font-bold text-blue-400">🖼️ 실시간 클라우드 전시관</h2>
+                <button onclick="exitToHome()" class="bg-red-500 hover:bg-red-600 text-white text-2xl px-10 py-3 rounded-xl font-bold btn-large shadow-lg">메인으로</button>
             </div>
             <div id="gallery-grid" class="flex-1 grid grid-cols-2 lg:grid-cols-3 gap-8 overflow-y-auto p-4 custom-scroll">
-                <!-- 사진 데이터 -->
+                <p id="gallery-loading" class="col-span-full text-center text-slate-500 py-32 text-3xl italic">사진을 불러오는 중...</p>
             </div>
             <div class="text-center pb-6">
                 <button onclick="startCamera()" class="bg-red-500 text-white px-16 py-6 rounded-full text-4xl font-bold shadow-2xl btn-large border-b-8 border-red-900">새 사진 찍기</button>
@@ -191,322 +184,191 @@
         </div>
     </div>
 
-    <script>
-        // --- 사운드 엔진 (Web Audio API) ---
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, onSnapshot, serverTimestamp, query } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // --- Firebase 초기화 (Gemini 환경 변수 자동 로드) ---
+        const firebaseConfig = JSON.parse(__firebase_config);
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'spotlight-live';
+
+        let user = null;
+        let galleryUnsubscribe = null;
+
+        // RULE 3: Auth Before Queries
+        const initAuth = async () => {
+            if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                await signInWithCustomToken(auth, __initial_auth_token);
+            } else {
+                await signInAnonymously(auth);
+            }
+        };
+        initAuth();
+        onAuthStateChanged(auth, (u) => { user = u; });
+
+        // --- 사운드 엔진 ---
         const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        
         function playSound(type) {
             if (audioCtx.state === 'suspended') audioCtx.resume();
             const osc = audioCtx.createOscillator();
             const gain = audioCtx.createGain();
-            osc.connect(gain);
-            gain.connect(audioCtx.destination);
-
-            if (type === 'tick') { // 카운트다운 틱
-                osc.type = 'sine';
-                osc.frequency.setValueAtTime(440, audioCtx.currentTime);
-                gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
-                gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
-                osc.start();
-                osc.stop(audioCtx.currentTime + 0.1);
-            } else if (type === 'final') { // 마지막 촬영음
-                osc.type = 'sine';
-                osc.frequency.setValueAtTime(880, audioCtx.currentTime);
-                gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
-                gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
-                osc.start();
-                osc.stop(audioCtx.currentTime + 0.3);
-            } else if (type === 'shutter') { // 찰칵 소리 (화이트 노이즈)
-                const bufferSize = audioCtx.sampleRate * 0.1;
-                const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
-                const data = buffer.getChannelData(0);
-                for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
-                const noise = audioCtx.createBufferSource();
-                noise.buffer = buffer;
-                const noiseGain = audioCtx.createGain();
-                noiseGain.gain.setValueAtTime(0.5, audioCtx.currentTime);
-                noiseGain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
-                noise.connect(noiseGain);
-                noiseGain.connect(audioCtx.destination);
-                noise.start();
-            }
+            osc.connect(gain); gain.connect(audioCtx.destination);
+            if (type === 'tick') { osc.frequency.setValueAtTime(440, audioCtx.currentTime); gain.gain.setValueAtTime(0.1, audioCtx.currentTime); osc.start(); osc.stop(audioCtx.currentTime + 0.1); }
+            else if (type === 'final') { osc.frequency.setValueAtTime(880, audioCtx.currentTime); gain.gain.setValueAtTime(0.2, audioCtx.currentTime); osc.start(); osc.stop(audioCtx.currentTime + 0.3); }
+            else if (type === 'shutter') { const buffer = audioCtx.createBuffer(1, audioCtx.sampleRate * 0.1, audioCtx.sampleRate); const data = buffer.getChannelData(0); for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1; const src = audioCtx.createBufferSource(); src.buffer = buffer; const sg = audioCtx.createGain(); sg.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1); src.connect(sg); sg.connect(audioCtx.destination); src.start(); }
         }
 
-        // 긴장감 있는 심장 박동 배경음
         let suspenseInterval;
-        function startSuspenseMusic() {
-            stopSuspenseMusic();
-            suspenseInterval = setInterval(() => {
-                const osc = audioCtx.createOscillator();
-                const gain = audioCtx.createGain();
-                osc.type = 'sine';
-                osc.frequency.setValueAtTime(60, audioCtx.currentTime); // 낮은 베이스음
-                gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
-                gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.4);
-                osc.connect(gain);
-                gain.connect(audioCtx.destination);
-                osc.start();
-                osc.stop(audioCtx.currentTime + 0.4);
-            }, 600); // 0.6초 간격 쿵-쿵-
-        }
-        function stopSuspenseMusic() {
-            if (suspenseInterval) clearInterval(suspenseInterval);
-        }
+        function startSuspenseMusic() { stopSuspenseMusic(); suspenseInterval = setInterval(() => { const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain(); osc.frequency.setValueAtTime(60, audioCtx.currentTime); gain.gain.setValueAtTime(0.1, audioCtx.currentTime); gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.4); osc.connect(gain); gain.connect(audioCtx.destination); osc.start(); osc.stop(audioCtx.currentTime + 0.4); }, 600); }
+        function stopSuspenseMusic() { if (suspenseInterval) clearInterval(suspenseInterval); }
 
-        // --- 앱 로직 ---
+        // --- 카메라 & 게임 로직 ---
         const video = document.getElementById('video');
         const gameCanvas = document.getElementById('gameCanvas');
         const resultCanvas = document.getElementById('resultCanvas');
         const gCtx = gameCanvas.getContext('2d');
         const rCtx = resultCanvas.getContext('2d');
-        
         let spotlight = { x: 0, y: 0, baseR: 150, r: 150, dx: 8, dy: 8, phase: 0 };
-        let animationId;
-        let countdownValue = 5;
-        let isCaptured = false;
+        let animationId, countdownValue = 5, isCaptured = false;
 
-        function switchStep(stepId) {
-            ['step-start', 'step-game', 'step-result', 'step-gallery'].forEach(id => document.getElementById(id).classList.add('hidden'));
-            document.getElementById(stepId).classList.remove('hidden');
-        }
-
-        function toggleFullscreen() {
-            const doc = document.documentElement;
-            if (!document.fullscreenElement) {
-                if (doc.requestFullscreen) doc.requestFullscreen();
-                else if (doc.webkitRequestFullscreen) doc.webkitRequestFullscreen();
-            } else if (document.exitFullscreen) {
-                document.exitFullscreen();
-            }
-        }
+        window.switchStep = (stepId) => { ['step-start', 'step-game', 'step-result', 'step-gallery'].forEach(id => document.getElementById(id).classList.add('hidden')); document.getElementById(stepId).classList.remove('hidden'); };
+        window.toggleFullscreen = () => { const doc = document.documentElement; if (!document.fullscreenElement) { if (doc.requestFullscreen) doc.requestFullscreen(); } else { document.exitFullscreen(); } };
 
         function syncCanvasSize() {
             const container = document.getElementById('camera-container');
             if (!container) return;
             gameCanvas.width = container.offsetWidth;
             gameCanvas.height = container.offsetHeight;
-            if (spotlight.x === 0 || spotlight.x > gameCanvas.width) {
-                spotlight.x = gameCanvas.width / 2;
-                spotlight.y = gameCanvas.height / 2;
-            }
+            if (spotlight.x === 0) { spotlight.x = gameCanvas.width / 2; spotlight.y = gameCanvas.height / 2; }
             spotlight.baseR = Math.min(gameCanvas.width, gameCanvas.height) / 5;
         }
-
         window.addEventListener('resize', syncCanvasSize);
 
-        function exitToHome() {
-            isCaptured = true;
-            stopSuspenseMusic();
-            cancelAnimationFrame(animationId);
-            if (video.srcObject) {
-                video.srcObject.getTracks().forEach(t => t.stop());
-                video.srcObject = null;
-            }
-            switchStep('step-start');
-        }
+        window.exitToHome = () => { isCaptured = true; stopSuspenseMusic(); cancelAnimationFrame(animationId); if (video.srcObject) { video.srcObject.getTracks().forEach(t => t.stop()); video.srcObject = null; } if (galleryUnsubscribe) galleryUnsubscribe(); window.switchStep('step-start'); };
 
-        async function startCamera() {
+        window.startCamera = async () => {
             if (audioCtx.state === 'suspended') audioCtx.resume();
-            toggleFullscreen();
             try {
-                isCaptured = false;
-                countdownValue = 5;
-                const stream = await navigator.mediaDevices.getUserMedia({ 
-                    video: { width: { ideal: 1920 }, height: { ideal: 1080 } },
-                    audio: false 
-                });
+                isCaptured = false; countdownValue = 5;
+                const stream = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false });
                 video.srcObject = stream;
-                switchStep('step-game');
-                video.onloadedmetadata = () => {
-                    video.play();
-                    setTimeout(syncCanvasSize, 100);
-                    startGameLoop();
-                    startCountdown();
-                    startSuspenseMusic(); // 게임 시작 시 긴장감 음악 시작
-                };
-            } catch (err) {
-                alert("카메라를 사용할 수 없습니다. 권한 설정을 확인해 주세요.");
-            }
-        }
+                window.switchStep('step-game');
+                video.onloadedmetadata = () => { video.play(); setTimeout(syncCanvasSize, 100); startGameLoop(); startCountdown(); startSuspenseMusic(); };
+            } catch (err) { alert("카메라 권한을 허용해 주세요!"); }
+        };
 
         function startGameLoop() {
             if (isCaptured) return;
-            const w = gameCanvas.width;
-            const h = gameCanvas.height;
-
-            spotlight.x += spotlight.dx; 
-            spotlight.y += spotlight.dy;
-
-            if (spotlight.x - spotlight.r < 0) { spotlight.x = spotlight.r; spotlight.dx *= -1; }
-            if (spotlight.x + spotlight.r > w) { spotlight.x = w - spotlight.r; spotlight.dx *= -1; }
-            if (spotlight.y - spotlight.r < 0) { spotlight.y = spotlight.r; spotlight.dy *= -1; }
-            if (spotlight.y + spotlight.r > h) { spotlight.y = h - spotlight.r; spotlight.dy *= -1; }
-
-            spotlight.phase += 0.05;
-            spotlight.r = spotlight.baseR + Math.sin(spotlight.phase) * (spotlight.baseR * 0.4);
-
-            if (Math.random() < 0.03) { 
-                spotlight.dx = (Math.random() - 0.5) * 25; 
-                spotlight.dy = (Math.random() - 0.5) * 25; 
-            }
-
+            const w = gameCanvas.width, h = gameCanvas.height;
+            spotlight.x += spotlight.dx; spotlight.y += spotlight.dy;
+            if (spotlight.x - spotlight.r < 0 || spotlight.x + spotlight.r > w) spotlight.dx *= -1;
+            if (spotlight.y - spotlight.r < 0 || spotlight.y + spotlight.r > h) spotlight.dy *= -1;
+            spotlight.phase += 0.05; spotlight.r = spotlight.baseR + Math.sin(spotlight.phase) * (spotlight.baseR * 0.4);
+            if (Math.random() < 0.03) { spotlight.dx = (Math.random() - 0.5) * 25; spotlight.dy = (Math.random() - 0.5) * 25; }
             gCtx.clearRect(0, 0, w, h);
-            gCtx.fillStyle = "rgba(0, 0, 0, 0.95)";
-            gCtx.fillRect(0, 0, w, h);
-            
-            gCtx.globalCompositeOperation = 'destination-out';
-            gCtx.beginPath(); 
-            gCtx.arc(spotlight.x, spotlight.y, spotlight.r, 0, Math.PI * 2); 
-            gCtx.fill();
-            
-            gCtx.globalCompositeOperation = 'source-over';
-            gCtx.strokeStyle = "white";
-            gCtx.lineWidth = 12;
-            gCtx.beginPath(); 
-            gCtx.arc(spotlight.x, spotlight.y, spotlight.r, 0, Math.PI * 2); 
-            gCtx.stroke();
-
+            gCtx.fillStyle = "rgba(0, 0, 0, 0.95)"; gCtx.fillRect(0, 0, w, h);
+            gCtx.globalCompositeOperation = 'destination-out'; gCtx.beginPath(); gCtx.arc(spotlight.x, spotlight.y, spotlight.r, 0, Math.PI * 2); gCtx.fill();
+            gCtx.globalCompositeOperation = 'source-over'; gCtx.strokeStyle = "white"; gCtx.lineWidth = 12; gCtx.beginPath(); gCtx.arc(spotlight.x, spotlight.y, spotlight.r, 0, Math.PI * 2); gCtx.stroke();
             animationId = requestAnimationFrame(startGameLoop);
         }
 
         function startCountdown() {
             const cdDisplay = document.getElementById('countdown');
             cdDisplay.innerText = countdownValue;
-            playSound('tick'); // 첫 소리
-
+            playSound('tick');
             const timer = setInterval(() => {
                 if (isCaptured) { clearInterval(timer); return; }
                 countdownValue--;
-                if (countdownValue > 0) {
-                    cdDisplay.innerText = countdownValue;
-                    playSound('tick');
-                } else { 
-                    clearInterval(timer); 
-                    cdDisplay.innerText = "📸"; 
-                    playSound('final');
-                    setTimeout(capturePhoto, 400); 
-                }
+                if (countdownValue > 0) { cdDisplay.innerText = countdownValue; playSound('tick'); }
+                else { clearInterval(timer); cdDisplay.innerText = "📸"; playSound('final'); setTimeout(capturePhoto, 400); }
             }, 1000);
         }
 
         function capturePhoto() {
-            if (isCaptured) return;
-            isCaptured = true;
-            stopSuspenseMusic();
-            cancelAnimationFrame(animationId);
-            
-            // 셔터 효과음 및 플래시
+            if (isCaptured) return; isCaptured = true; stopSuspenseMusic(); cancelAnimationFrame(animationId);
             playSound('shutter');
-            const flash = document.getElementById('flash');
-            flash.classList.add('flash-active');
+            const flash = document.getElementById('flash'); flash.classList.add('flash-active');
             setTimeout(() => flash.classList.remove('flash-active'), 500);
 
-            resultCanvas.width = video.videoWidth;
-            resultCanvas.height = video.videoHeight;
+            resultCanvas.width = video.videoWidth; resultCanvas.height = video.videoHeight;
+            rCtx.save(); rCtx.translate(resultCanvas.width, 0); rCtx.scale(-1, 1); rCtx.drawImage(video, 0, 0); rCtx.restore();
             
-            rCtx.save();
-            rCtx.translate(resultCanvas.width, 0);
-            rCtx.scale(-1, 1);
-            rCtx.drawImage(video, 0, 0, resultCanvas.width, resultCanvas.height);
-            rCtx.restore();
-            
-            const scaleX = resultCanvas.width / gameCanvas.width;
-            const scaleY = resultCanvas.height / gameCanvas.height;
-            const mask = document.createElement('canvas');
-            mask.width = resultCanvas.width; mask.height = resultCanvas.height;
+            const scaleX = resultCanvas.width / gameCanvas.width, scaleY = resultCanvas.height / gameCanvas.height;
+            const mask = document.createElement('canvas'); mask.width = resultCanvas.width; mask.height = resultCanvas.height;
             const mCtx = mask.getContext('2d');
-            mCtx.fillStyle = "rgba(0,0,0,0.95)"; 
-            mCtx.fillRect(0, 0, mask.width, mask.height);
-            mCtx.globalCompositeOperation = 'destination-out';
-            mCtx.beginPath(); 
-            const invX = gameCanvas.width - spotlight.x;
-            mCtx.arc(invX * scaleX, spotlight.y * scaleY, spotlight.r * Math.max(scaleX, scaleY), 0, Math.PI * 2); 
-            mCtx.fill();
-            
+            mCtx.fillStyle = "rgba(0,0,0,0.95)"; mCtx.fillRect(0, 0, mask.width, mask.height);
+            mCtx.globalCompositeOperation = 'destination-out'; mCtx.beginPath(); mCtx.arc((gameCanvas.width - spotlight.x) * scaleX, spotlight.y * scaleY, spotlight.r * Math.max(scaleX, scaleY), 0, Math.PI * 2); mCtx.fill();
             rCtx.drawImage(mask, 0, 0);
 
-            // 미리보기 위해 게임 캔버스에 결과 잠시 렌더링
             gCtx.clearRect(0,0,gameCanvas.width, gameCanvas.height);
-            gCtx.save();
-            gCtx.translate(gameCanvas.width, 0);
-            gCtx.scale(-1, 1);
-            gCtx.drawImage(resultCanvas, 0, 0, gameCanvas.width, gameCanvas.height);
-            gCtx.restore();
+            gCtx.save(); gCtx.translate(gameCanvas.width, 0); gCtx.scale(-1, 1); gCtx.drawImage(resultCanvas, 0, 0, gameCanvas.width, gameCanvas.height); gCtx.restore();
 
-            setTimeout(() => {
-                switchStep('step-result');
-                document.getElementById('saveBtn').disabled = false;
-                document.getElementById('saveBtn').innerText = "전시관 등록";
-            }, 800);
+            setTimeout(() => { switchStep('step-result'); document.getElementById('saveBtn').disabled = false; document.getElementById('saveBtn').innerText = "전시관 등록"; }, 800);
         }
 
-        function saveToLocalGallery() {
+        // --- 클라우드 공유 로직 (Firebase) ---
+        window.uploadToFirebase = async () => {
+            if (!user) return;
             const btn = document.getElementById('saveBtn');
-            btn.disabled = true;
-            btn.innerText = "저장 중...";
-
-            const imageData = resultCanvas.toDataURL('image/jpeg', 0.5);
+            btn.disabled = true; btn.innerText = "전송 중...";
             try {
-                let photos = JSON.parse(localStorage.getItem('my_spotlight_photos') || '[]');
-                photos.unshift({ id: Date.now(), img: imageData });
-                if (photos.length > 50) photos = photos.slice(0, 50);
-                localStorage.setItem('my_spotlight_photos', JSON.stringify(photos));
-                showGallery();
-            } catch (e) {
-                alert("저장 공간이 부족합니다! 오래된 사진을 삭제해 주세요.");
-                btn.disabled = false;
-                btn.innerText = "전시관 등록";
-            }
-        }
-
-        function showGallery() {
-            switchStep('step-gallery');
-            const grid = document.getElementById('gallery-grid');
-            const photos = JSON.parse(localStorage.getItem('my_spotlight_photos') || '[]');
-            
-            if (photos.length > 0) {
-                grid.innerHTML = '';
-                photos.forEach(p => {
-                    const div = document.createElement('div');
-                    div.className = "photo-card space-y-3";
-                    div.innerHTML = `
-                        <img src="${p.img}" class="w-full h-auto rounded-xl">
-                        <div class="flex gap-2">
-                            <button onclick="downloadImg('${p.img}')" class="flex-1 bg-blue-500 py-2 rounded-lg font-bold text-sm">기기 저장</button>
-                            <button onclick="deleteImg(${p.id})" class="bg-gray-600 px-3 py-2 rounded-lg font-bold text-sm">삭제</button>
-                        </div>
-                    `;
-                    grid.appendChild(div);
+                // RULE 1: Strict Paths
+                const colRef = collection(db, 'artifacts', appId, 'public', 'data', 'photos');
+                await addDoc(colRef, {
+                    image: resultCanvas.toDataURL('image/jpeg', 0.5),
+                    createdAt: serverTimestamp(),
+                    userId: user.uid
                 });
-            } else {
-                grid.innerHTML = '<p class="col-span-full text-center text-slate-500 py-32 text-3xl italic font-bold">아직 등록된 사진이 없습니다.</p>';
+                window.showGallery();
+            } catch (e) {
+                alert("전송 실패: " + e.message);
+                btn.disabled = false; btn.innerText = "전시관 등록";
             }
-        }
+        };
 
-        function downloadImg(data) {
-            const a = document.createElement('a');
-            a.href = data;
-            a.download = `spotlight_${Date.now()}.jpg`;
-            a.click();
-        }
+        window.showGallery = () => {
+            if (!user) return;
+            window.switchStep('step-gallery');
+            const grid = document.getElementById('gallery-grid');
+            const loading = document.getElementById('gallery-loading');
+            
+            if (galleryUnsubscribe) galleryUnsubscribe();
 
-        function deleteImg(id) {
-            let photos = JSON.parse(localStorage.getItem('my_spotlight_photos') || '[]');
-            photos = photos.filter(p => p.id !== id);
-            localStorage.setItem('my_spotlight_photos', JSON.stringify(photos));
-            showGallery();
-        }
+            // RULE 1: Strict Paths
+            const q = collection(db, 'artifacts', appId, 'public', 'data', 'photos');
+            
+            galleryUnsubscribe = onSnapshot(q, (snapshot) => {
+                const photos = [];
+                snapshot.forEach(doc => photos.push({ id: doc.id, ...doc.data() }));
+                
+                // RULE 2: No Complex Queries (Sort in memory)
+                photos.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
 
-        function clearPhotos() {
-            if (confirm("모든 사진 기록을 삭제하고 전시관을 비울까요?")) {
-                localStorage.removeItem('my_spotlight_photos');
-                showGallery();
-            }
-        }
+                grid.innerHTML = '';
+                if (photos.length > 0) {
+                    photos.forEach(p => {
+                        const div = document.createElement('div');
+                        div.className = "photo-card space-y-3";
+                        div.innerHTML = `<img src="${p.image}" class="w-full h-auto rounded-xl">`;
+                        grid.appendChild(div);
+                    });
+                } else {
+                    grid.innerHTML = '<p class="col-span-full text-center text-slate-500 py-32 text-3xl italic">아직 사진이 없습니다.</p>';
+                }
+            }, (err) => { console.error(err); });
+        };
 
+        // 전역 바인딩
+        window.startCamera = startCamera;
+        window.showGallery = showGallery;
+        window.uploadToFirebase = uploadToFirebase;
         document.getElementById('btn-start').onclick = startCamera;
         document.getElementById('btn-gallery').onclick = showGallery;
-        document.getElementById('saveBtn').onclick = saveToLocalGallery;
+        document.getElementById('saveBtn').onclick = uploadToFirebase;
 
     </script>
 </body>
