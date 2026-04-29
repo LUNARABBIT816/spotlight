@@ -161,9 +161,9 @@
                 <h2 class="text-4xl md:text-5xl font-bold text-yellow-400">나이스 샷! ✨</h2>
                 <p class="text-xl text-slate-300">이 사진을 클라우드 전시관에 등록할까요?</p>
             </div>
-            <div class="relative inline-block border-[12px] border-white rounded-[2.5rem] shadow-2xl overflow-hidden bg-black max-w-[85%] max-h-[60vh]">
-                <!-- 사진 결과물 캔버스 -->
-                <canvas id="resultCanvas" class="w-full h-full object-contain"></canvas>
+            <!-- 미리보기 캔버스 틀 CSS 버그 수정 -->
+            <div class="border-[12px] border-white rounded-[2.5rem] shadow-2xl overflow-hidden bg-black flex justify-center items-center">
+                <canvas id="resultCanvas" class="max-w-full h-auto max-h-[50vh] object-contain relative inline-block"></canvas>
             </div>
             <div class="flex gap-8 justify-center pt-2 w-full max-w-3xl">
                 <button onclick="startCamera()" class="flex-1 bg-slate-600 hover:bg-slate-500 text-white py-6 rounded-2xl text-2xl md:text-3xl font-bold btn-large">다시 찍기</button>
@@ -189,10 +189,10 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, addDoc, onSnapshot, serverTimestamp, query } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        // doc, deleteDoc을 추가하여 삭제 기능 활성화
+        import { getFirestore, collection, addDoc, onSnapshot, serverTimestamp, query, doc, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // --- Firebase 구성 정보 설정 ---
-        // 선생님께서 제공해주신 API 키를 적용했습니다.
         const manualConfig = {
             apiKey: "AIzaSyC2k6y4zZVwKlM8tpBfxwQBAscHGk3LKPA",
             authDomain: "spotlight-challange.firebaseapp.com",
@@ -288,7 +288,6 @@
             if (audioCtx.state === 'suspended') audioCtx.resume();
             try {
                 isCaptured = false; countdownValue = 5;
-                // 모바일 환경을 위해 전면 카메라(셀카 렌즈) 우선 적용
                 const stream = await navigator.mediaDevices.getUserMedia({ 
                     video: { 
                         width: { ideal: 1920 }, 
@@ -339,13 +338,13 @@
             flash.classList.add('flash-active');
             setTimeout(() => flash.classList.remove('flash-active'), 500);
 
-            // 기기별 비율 호환을 위해 캔버스 크기를 화면에 표시되는 크기와 1:1로 맞춤
             const w = gameCanvas.width;
             const h = gameCanvas.height;
+            
+            // 캔버스의 실제 좌표(픽셀) 크기를 부여하여 하얀 점으로 쪼그라드는 버그 해결
             resultCanvas.width = w; 
             resultCanvas.height = h;
 
-            // object-fit: cover 효과를 계산하여 화면에 보이는 영역만 정확히 잘라냄
             const videoRatio = video.videoWidth / video.videoHeight;
             const screenRatio = w / h;
             let drawW, drawH, drawX, drawY;
@@ -356,14 +355,12 @@
                 drawH = h; drawW = h * videoRatio; drawX = (w - drawW) / 2; drawY = 0;
             }
 
-            // 원본 영상 렌더링 (거울 모드 완벽 대응)
             rCtx.save(); 
             rCtx.translate(w, 0); 
             rCtx.scale(-1, 1); 
             rCtx.drawImage(video, drawX, drawY, drawW, drawH); 
             rCtx.restore();
             
-            // 검은 배경 마스크 및 뚫기 작업
             const mask = document.createElement('canvas'); 
             mask.width = w; mask.height = h;
             const mCtx = mask.getContext('2d');
@@ -371,13 +368,11 @@
             mCtx.fillRect(0, 0, w, h);
             mCtx.globalCompositeOperation = 'destination-out'; 
             mCtx.beginPath(); 
-            // 시각적 위치에 정확히 맞추기 위해 x좌표 반전 (거울모드)
             mCtx.arc(w - spotlight.x, spotlight.y, spotlight.r, 0, Math.PI * 2); 
             mCtx.fill();
             
             rCtx.drawImage(mask, 0, 0);
 
-            // 📸 찰칵 후 미리보기 연출 (게임 화면에 결과 사진을 1초간 정지시켜 보여줌)
             gCtx.clearRect(0, 0, w, h);
             gCtx.save(); 
             gCtx.translate(w, 0); 
@@ -385,7 +380,6 @@
             gCtx.drawImage(resultCanvas, 0, 0, w, h); 
             gCtx.restore();
 
-            // 1초 뒤에 최종 사진 확인창(결과창)으로 이동
             setTimeout(() => { 
                 switchStep('step-result'); 
                 document.getElementById('saveBtn').disabled = false; 
@@ -401,7 +395,7 @@
             try {
                 const colRef = collection(db, 'artifacts', appId, 'public', 'data', 'photos');
                 await addDoc(colRef, {
-                    image: resultCanvas.toDataURL('image/jpeg', 0.6), // 용량 최적화
+                    image: resultCanvas.toDataURL('image/jpeg', 0.6),
                     createdAt: serverTimestamp(),
                     userId: user.uid
                 });
@@ -428,14 +422,40 @@
                 if (photos.length > 0) {
                     photos.forEach(p => {
                         const div = document.createElement('div');
-                        div.className = "photo-card space-y-3";
-                        div.innerHTML = `<img src="${p.image}" class="w-full h-auto rounded-xl">`;
+                        div.className = "photo-card space-y-3 flex flex-col";
+                        // 사진 저장 및 삭제 버튼이 포함된 갤러리 카드
+                        div.innerHTML = `
+                            <img src="${p.image}" class="w-full h-auto rounded-xl">
+                            <div class="flex gap-2 mt-auto pt-2">
+                                <button onclick="downloadOne('${p.image}')" class="flex-1 bg-blue-500 hover:bg-blue-600 py-2 rounded-lg font-bold text-sm text-white">기기 저장</button>
+                                <button onclick="deletePhoto('${p.id}')" class="bg-gray-600 hover:bg-gray-700 px-3 py-2 rounded-lg font-bold text-sm text-white">삭제</button>
+                            </div>
+                        `;
                         grid.appendChild(div);
                     });
                 } else {
                     grid.innerHTML = '<p class="col-span-full text-center text-slate-500 py-32 text-3xl italic">아직 사진이 없습니다.</p>';
                 }
             }, (err) => { console.error("Firestore 오류:", err); });
+        };
+
+        // 개별 사진 다운로드 기능
+        window.downloadOne = (data) => {
+            const link = document.createElement('a');
+            link.href = data;
+            link.download = `spotlight_${Date.now()}.jpg`;
+            link.click();
+        };
+
+        // 개별 사진 서버에서 삭제 기능 (Firebase deleteDoc 적용)
+        window.deletePhoto = async (id) => {
+            if (confirm("이 사진을 전시관에서 완전히 삭제할까요?")) {
+                try {
+                    await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'photos', id));
+                } catch(e) {
+                    alert("삭제 실패: 이미 삭제되었거나 권한이 없습니다.");
+                }
+            }
         };
 
         // 전역 바인딩
