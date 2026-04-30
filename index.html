@@ -1,8 +1,9 @@
+```html
 <!DOCTYPE html>
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>스포트라이트 챌린지</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
@@ -39,11 +40,12 @@
             overflow: hidden;
         }
 
+        /* 거울 모드 반전 */
         .mirror-flip {
             transform: scaleX(-1);
         }
 
-        video, canvas {
+        video, #gameCanvas {
             position: absolute;
             top: 0;
             left: 0;
@@ -86,6 +88,7 @@
             cursor: pointer;
         }
 
+        /* 갤러리 카드 */
         .photo-card {
             background: #334155;
             padding: 10px;
@@ -111,6 +114,25 @@
         }
         .flash-active { animation: flash-anim 0.5s ease-out; }
         @keyframes flash-anim { 0% { opacity: 1; } 100% { opacity: 0; } }
+
+        /* 미리보기 캔버스 감싸는 틀 고정 */
+        .result-container {
+            width: 85%;
+            height: 60vh;
+            border: 12px solid white;
+            border-radius: 2.5rem;
+            overflow: hidden;
+            background: #000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+        #resultCanvas {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+        }
     </style>
 </head>
 <body>
@@ -118,13 +140,11 @@
     <div id="flash"></div>
 
     <div id="app">
-        <!-- 1. 시작 화면 -->
         <div id="step-start" class="flex-1 flex flex-col items-center justify-center p-10 text-center space-y-10 z-10 bg-slate-900">
             <div class="space-y-4">
                 <div class="text-[10rem] md:text-[12rem] leading-none animate-bounce">📸</div>
                 <h1 class="text-7xl md:text-[10rem] font-extrabold text-red-500 tracking-tighter uppercase leading-tight">Spotlight</h1>
-                <h2 class="text-3xl md:text-5xl text-slate-300 font-bold">스포트라이트 챌린지</h2>
-                <p class="text-xl text-slate-400">원 안에 들어가서 사진을 찍어 보세요!</p>
+                <h2 class="text-3xl md:text-5xl text-slate-300 font-bold">실시간 공유 포토존</h2>
             </div>
             
             <div class="flex flex-col md:flex-row gap-8 justify-center pt-6 w-full max-w-4xl px-4">
@@ -141,7 +161,6 @@
             </button>
         </div>
 
-        <!-- 2. 게임 화면 -->
         <div id="step-game" class="hidden h-full w-full">
             <div class="ui-panel">
                 <button class="ui-btn" onclick="exitToHome()">종료 ✖</button>
@@ -155,15 +174,13 @@
             </div>
         </div>
 
-        <!-- 3. 결과 확인 화면 -->
         <div id="step-result" class="hidden flex-1 flex flex-col items-center justify-center p-8 text-center space-y-6 z-10 bg-slate-900">
             <div class="space-y-2">
                 <h2 class="text-4xl md:text-5xl font-bold text-yellow-400">나이스 샷! ✨</h2>
                 <p class="text-xl text-slate-300">이 사진을 클라우드 전시관에 등록할까요?</p>
             </div>
-            <!-- 미리보기 캔버스 틀 CSS 버그 수정 -->
-            <div class="border-[12px] border-white rounded-[2.5rem] shadow-2xl overflow-hidden bg-black flex justify-center items-center">
-                <canvas id="resultCanvas" class="max-w-full h-auto max-h-[50vh] object-contain relative inline-block"></canvas>
+            <div class="result-container shadow-2xl">
+                <canvas id="resultCanvas"></canvas>
             </div>
             <div class="flex gap-8 justify-center pt-2 w-full max-w-3xl">
                 <button onclick="startCamera()" class="flex-1 bg-slate-600 hover:bg-slate-500 text-white py-6 rounded-2xl text-2xl md:text-3xl font-bold btn-large">다시 찍기</button>
@@ -171,7 +188,6 @@
             </div>
         </div>
 
-        <!-- 4. 전시관 화면 -->
         <div id="step-gallery" class="hidden h-full flex flex-col p-8 space-y-6 z-10 bg-slate-900">
             <div class="flex justify-between items-center border-b-6 border-slate-700 pb-6">
                 <h2 class="text-5xl font-bold text-blue-400">🖼️ 실시간 클라우드 전시관</h2>
@@ -189,10 +205,9 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        // doc, deleteDoc을 추가하여 삭제 기능 활성화
         import { getFirestore, collection, addDoc, onSnapshot, serverTimestamp, query, doc, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // --- Firebase 구성 정보 설정 ---
+        // --- Firebase 설정 ---
         const manualConfig = {
             apiKey: "AIzaSyC2k6y4zZVwKlM8tpBfxwQBAscHGk3LKPA",
             authDomain: "spotlight-challange.firebaseapp.com",
@@ -203,12 +218,7 @@
             measurementId: "G-41BQH3H7MG"
         };
 
-        const firebaseConfig = typeof __firebase_config !== 'undefined' && __firebase_config ? JSON.parse(__firebase_config) : manualConfig;
-        
-        if (!firebaseConfig.apiKey) {
-            console.error("Firebase 설정이 누락되었습니다.");
-        }
-
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : manualConfig;
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
@@ -219,14 +229,9 @@
 
         const initAuth = async () => {
             try {
-                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                    await signInWithCustomToken(auth, __initial_auth_token);
-                } else {
-                    await signInAnonymously(auth);
-                }
-            } catch (e) {
-                console.error("Firebase 인증 실패:", e);
-            }
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) await signInWithCustomToken(auth, __initial_auth_token);
+                else await signInAnonymously(auth);
+            } catch (e) { console.error("Firebase 인증 실패:", e); }
         };
         initAuth();
         onAuthStateChanged(auth, (u) => { user = u; });
@@ -242,25 +247,19 @@
             else if (type === 'final') { osc.frequency.setValueAtTime(880, audioCtx.currentTime); gain.gain.setValueAtTime(0.2, audioCtx.currentTime); osc.start(); osc.stop(audioCtx.currentTime + 0.3); }
             else if (type === 'shutter') { playShutterSound(); }
         }
-
         function playShutterSound() {
             const buffer = audioCtx.createBuffer(1, audioCtx.sampleRate * 0.1, audioCtx.sampleRate);
             const data = buffer.getChannelData(0);
             for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
-            const src = audioCtx.createBufferSource();
-            src.buffer = buffer;
-            const sg = audioCtx.createGain();
-            sg.gain.setValueAtTime(0.3, audioCtx.currentTime);
-            sg.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
-            src.connect(sg); sg.connect(audioCtx.destination);
-            src.start();
+            const src = audioCtx.createBufferSource(); src.buffer = buffer;
+            const sg = audioCtx.createGain(); sg.gain.setValueAtTime(0.3, audioCtx.currentTime); sg.connect(audioCtx.destination); src.connect(sg); src.start();
         }
 
         let suspenseInterval;
         function startSuspenseMusic() { stopSuspenseMusic(); suspenseInterval = setInterval(() => { const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain(); osc.frequency.setValueAtTime(60, audioCtx.currentTime); gain.gain.setValueAtTime(0.1, audioCtx.currentTime); gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.4); osc.connect(gain); gain.connect(audioCtx.destination); osc.start(); osc.stop(audioCtx.currentTime + 0.4); }, 600); }
         function stopSuspenseMusic() { if (suspenseInterval) clearInterval(suspenseInterval); }
 
-        // --- 카메라 & 게임 로직 ---
+        // --- 메인 로직 ---
         const video = document.getElementById('video');
         const gameCanvas = document.getElementById('gameCanvas');
         const resultCanvas = document.getElementById('resultCanvas');
@@ -273,13 +272,17 @@
         window.toggleFullscreen = () => { const doc = document.documentElement; if (!document.fullscreenElement) { if (doc.requestFullscreen) doc.requestFullscreen(); } else { document.exitFullscreen(); } };
 
         function syncCanvasSize() {
-            const container = document.getElementById('camera-container');
-            if (!container) return;
-            gameCanvas.width = container.offsetWidth;
-            gameCanvas.height = container.offsetHeight;
-            if (spotlight.x === 0) { spotlight.x = gameCanvas.width / 2; spotlight.y = gameCanvas.height / 2; }
-            spotlight.baseR = Math.min(gameCanvas.width, gameCanvas.height) / 5;
+            // 화면 픽셀 비율(DPR)을 고려하여 캔버스 해상도 강제 설정 (가장 중요)
+            const dpr = window.devicePixelRatio || 1;
+            gameCanvas.width = window.innerWidth * dpr;
+            gameCanvas.height = window.innerHeight * dpr;
+            gCtx.scale(dpr, dpr); // 드로잉 좌표 보정
+            
+            if (spotlight.x === 0 || spotlight.x > window.innerWidth) spotlight.x = window.innerWidth / 2;
+            if (spotlight.y === 0 || spotlight.y > window.innerHeight) spotlight.y = window.innerHeight / 2;
+            spotlight.baseR = Math.min(window.innerWidth, window.innerHeight) / 5;
         }
+
         window.addEventListener('resize', syncCanvasSize);
 
         window.exitToHome = () => { isCaptured = true; stopSuspenseMusic(); cancelAnimationFrame(animationId); if (video.srcObject) { video.srcObject.getTracks().forEach(t => t.stop()); video.srcObject = null; } if (galleryUnsubscribe) galleryUnsubscribe(); window.switchStep('step-start'); };
@@ -288,26 +291,27 @@
             if (audioCtx.state === 'suspended') audioCtx.resume();
             try {
                 isCaptured = false; countdownValue = 5;
-                const stream = await navigator.mediaDevices.getUserMedia({ 
-                    video: { 
-                        width: { ideal: 1920 }, 
-                        height: { ideal: 1080 },
-                        facingMode: "user" 
-                    }, 
-                    audio: false 
-                });
+                const stream = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 1920 }, height: { ideal: 1080 }, facingMode: "user" }, audio: false });
                 video.srcObject = stream;
                 window.switchStep('step-game');
-                video.onloadedmetadata = () => { video.play(); setTimeout(syncCanvasSize, 100); startGameLoop(); startCountdown(); startSuspenseMusic(); };
+                video.onloadedmetadata = () => { video.play(); syncCanvasSize(); startGameLoop(); startCountdown(); startSuspenseMusic(); };
             } catch (err) { alert("카메라 권한을 확인해 주세요!"); }
         };
 
         function startGameLoop() {
             if (isCaptured) return;
-            const w = gameCanvas.width, h = gameCanvas.height;
+            // 실시간으로 윈도우 크기 참조
+            const w = window.innerWidth;
+            const h = window.innerHeight;
+
             spotlight.x += spotlight.dx; spotlight.y += spotlight.dy;
-            if (spotlight.x - spotlight.r < 0 || spotlight.x + spotlight.r > w) spotlight.dx *= -1;
-            if (spotlight.y - spotlight.r < 0 || spotlight.y + spotlight.r > h) spotlight.dy *= -1;
+
+            // 바운스 체크 시 window 크기를 직접 사용하여 탈출 방지
+            if (spotlight.x - spotlight.r < 0) { spotlight.x = spotlight.r; spotlight.dx *= -1; }
+            if (spotlight.x + spotlight.r > w) { spotlight.x = w - spotlight.r; spotlight.dx *= -1; }
+            if (spotlight.y - spotlight.r < 0) { spotlight.y = spotlight.r; spotlight.dy *= -1; }
+            if (spotlight.y + spotlight.r > h) { spotlight.y = h - spotlight.r; spotlight.dy *= -1; }
+
             spotlight.phase += 0.05; spotlight.r = spotlight.baseR + Math.sin(spotlight.phase) * (spotlight.baseR * 0.4);
             if (Math.random() < 0.03) { spotlight.dx = (Math.random() - 0.5) * 25; spotlight.dy = (Math.random() - 0.5) * 25; }
             
@@ -333,77 +337,61 @@
         function capturePhoto() {
             if (isCaptured) return; isCaptured = true; stopSuspenseMusic(); cancelAnimationFrame(animationId);
             playSound('shutter');
-            
-            const flash = document.getElementById('flash'); 
-            flash.classList.add('flash-active');
+            const flash = document.getElementById('flash'); flash.classList.add('flash-active');
             setTimeout(() => flash.classList.remove('flash-active'), 500);
 
-            const w = gameCanvas.width;
-            const h = gameCanvas.height;
-            
-            // 캔버스의 실제 좌표(픽셀) 크기를 부여하여 하얀 점으로 쪼그라드는 버그 해결
-            resultCanvas.width = w; 
-            resultCanvas.height = h;
+            const w = window.innerWidth;
+            const h = window.innerHeight;
+            // 해상도를 높여서 뭉침 현상 방지
+            const exportDpr = 2; 
+            resultCanvas.width = w * exportDpr; 
+            resultCanvas.height = h * exportDpr;
 
             const videoRatio = video.videoWidth / video.videoHeight;
             const screenRatio = w / h;
             let drawW, drawH, drawX, drawY;
 
             if (screenRatio > videoRatio) {
-                drawW = w; drawH = w / videoRatio; drawX = 0; drawY = (h - drawH) / 2;
+                drawW = resultCanvas.width; drawH = resultCanvas.width / videoRatio; drawX = 0; drawY = (resultCanvas.height - drawH) / 2;
             } else {
-                drawH = h; drawW = h * videoRatio; drawX = (w - drawW) / 2; drawY = 0;
+                drawH = resultCanvas.height; drawW = resultCanvas.height * videoRatio; drawX = (resultCanvas.width - drawW) / 2; drawY = 0;
             }
 
             rCtx.save(); 
-            rCtx.translate(w, 0); 
+            rCtx.translate(resultCanvas.width, 0); 
             rCtx.scale(-1, 1); 
             rCtx.drawImage(video, drawX, drawY, drawW, drawH); 
             rCtx.restore();
             
             const mask = document.createElement('canvas'); 
-            mask.width = w; mask.height = h;
+            mask.width = resultCanvas.width; mask.height = resultCanvas.height;
             const mCtx = mask.getContext('2d');
-            mCtx.fillStyle = "rgba(0,0,0,0.95)"; 
-            mCtx.fillRect(0, 0, w, h);
-            mCtx.globalCompositeOperation = 'destination-out'; 
-            mCtx.beginPath(); 
-            mCtx.arc(w - spotlight.x, spotlight.y, spotlight.r, 0, Math.PI * 2); 
+            mCtx.fillStyle = "rgba(0,0,0,0.95)"; mCtx.fillRect(0, 0, mask.width, mask.height);
+            mCtx.globalCompositeOperation = 'destination-out'; mCtx.beginPath(); 
+            mCtx.arc((w - spotlight.x) * exportDpr, spotlight.y * exportDpr, spotlight.r * exportDpr, 0, Math.PI * 2); 
             mCtx.fill();
-            
             rCtx.drawImage(mask, 0, 0);
 
+            // 미리보기 위해 임시 렌더링
             gCtx.clearRect(0, 0, w, h);
-            gCtx.save(); 
-            gCtx.translate(w, 0); 
-            gCtx.scale(-1, 1); 
-            gCtx.drawImage(resultCanvas, 0, 0, w, h); 
-            gCtx.restore();
+            gCtx.save(); gCtx.translate(w, 0); gCtx.scale(-1, 1); 
+            gCtx.drawImage(resultCanvas, 0, 0, w, h); gCtx.restore();
 
-            setTimeout(() => { 
-                switchStep('step-result'); 
-                document.getElementById('saveBtn').disabled = false; 
-                document.getElementById('saveBtn').innerText = "전시관 등록"; 
-            }, 1000);
+            setTimeout(() => { switchStep('step-result'); }, 1000);
         }
 
-        // --- 클라우드 공유 로직 ---
         window.uploadToFirebase = async () => {
-            if (!user) { alert("로그인 중입니다. 잠시만 기다려주세요."); return; }
+            if (!user) return;
             const btn = document.getElementById('saveBtn');
             btn.disabled = true; btn.innerText = "전송 중...";
             try {
-                const colRef = collection(db, 'artifacts', appId, 'public', 'data', 'photos');
-                await addDoc(colRef, {
-                    image: resultCanvas.toDataURL('image/jpeg', 0.6),
+                await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'photos'), {
+                    image: resultCanvas.toDataURL('image/jpeg', 0.5),
                     createdAt: serverTimestamp(),
                     userId: user.uid
                 });
                 window.showGallery();
-            } catch (e) {
-                alert("전송 실패: 파이어베이스 설정(Firestore 규칙 등)을 확인하세요.");
-                btn.disabled = false; btn.innerText = "전시관 등록";
-            }
+            } catch (e) { alert("저장 실패!"); btn.disabled = false; btn.innerText = "전시관 등록"; }
         };
 
         window.showGallery = () => {
@@ -411,61 +399,38 @@
             window.switchStep('step-gallery');
             const grid = document.getElementById('gallery-grid');
             if (galleryUnsubscribe) galleryUnsubscribe();
-
             const q = collection(db, 'artifacts', appId, 'public', 'data', 'photos');
             galleryUnsubscribe = onSnapshot(q, (snapshot) => {
                 const photos = [];
                 snapshot.forEach(doc => photos.push({ id: doc.id, ...doc.data() }));
                 photos.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
-
                 grid.innerHTML = '';
                 if (photos.length > 0) {
                     photos.forEach(p => {
                         const div = document.createElement('div');
-                        div.className = "photo-card space-y-3 flex flex-col";
-                        // 사진 저장 및 삭제 버튼이 포함된 갤러리 카드
+                        div.className = "photo-card flex flex-col gap-2";
                         div.innerHTML = `
                             <img src="${p.image}" class="w-full h-auto rounded-xl">
-                            <div class="flex gap-2 mt-auto pt-2">
-                                <button onclick="downloadOne('${p.image}')" class="flex-1 bg-blue-500 hover:bg-blue-600 py-2 rounded-lg font-bold text-sm text-white">기기 저장</button>
-                                <button onclick="deletePhoto('${p.id}')" class="bg-gray-600 hover:bg-gray-700 px-3 py-2 rounded-lg font-bold text-sm text-white">삭제</button>
+                            <div class="flex gap-2">
+                                <button onclick="window.downloadOne('${p.image}')" class="flex-1 bg-blue-500 py-2 rounded-lg font-bold text-sm">저장</button>
+                                <button onclick="window.deletePhoto('${p.id}')" class="bg-gray-600 px-3 py-2 rounded-lg font-bold text-sm">삭제</button>
                             </div>
                         `;
                         grid.appendChild(div);
                     });
-                } else {
-                    grid.innerHTML = '<p class="col-span-full text-center text-slate-500 py-32 text-3xl italic">아직 사진이 없습니다.</p>';
-                }
-            }, (err) => { console.error("Firestore 오류:", err); });
+                } else { grid.innerHTML = '<p class="col-span-full text-center py-32 text-2xl italic">사진이 없습니다.</p>'; }
+            });
         };
 
-        // 개별 사진 다운로드 기능
-        window.downloadOne = (data) => {
-            const link = document.createElement('a');
-            link.href = data;
-            link.download = `spotlight_${Date.now()}.jpg`;
-            link.click();
-        };
+        window.downloadOne = (data) => { const link = document.createElement('a'); link.href = data; link.download = `spotlight_${Date.now()}.jpg`; link.click(); };
+        window.deletePhoto = async (id) => { if (confirm("삭제할까요?")) await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'photos', id)); };
 
-        // 개별 사진 서버에서 삭제 기능 (Firebase deleteDoc 적용)
-        window.deletePhoto = async (id) => {
-            if (confirm("이 사진을 전시관에서 완전히 삭제할까요?")) {
-                try {
-                    await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'photos', id));
-                } catch(e) {
-                    alert("삭제 실패: 이미 삭제되었거나 권한이 없습니다.");
-                }
-            }
-        };
-
-        // 전역 바인딩
-        window.startCamera = startCamera;
-        window.showGallery = showGallery;
-        window.uploadToFirebase = uploadToFirebase;
         document.getElementById('btn-start').onclick = startCamera;
         document.getElementById('btn-gallery').onclick = showGallery;
         document.getElementById('saveBtn').onclick = uploadToFirebase;
-
     </script>
 </body>
 </html>
+
+
+```
