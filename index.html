@@ -143,7 +143,7 @@
             <div class="space-y-4">
                 <div class="text-[10rem] md:text-[12rem] leading-none animate-bounce">📸</div>
                 <h1 class="text-7xl md:text-[10rem] font-extrabold text-red-500 tracking-tighter uppercase leading-tight">Spotlight</h1>
-                <h2 class="text-3xl md:text-5xl text-slate-300 font-bold">원 안에 들어가서 사진을 남겨 보세요!</h2>
+                <h2 class="text-3xl md:text-5xl text-slate-300 font-bold">실시간 공유 포토존</h2>
             </div>
             
             <div class="flex flex-col md:flex-row gap-8 justify-center pt-6 w-full max-w-4xl px-4">
@@ -264,22 +264,30 @@
         const resultCanvas = document.getElementById('resultCanvas');
         const gCtx = gameCanvas.getContext('2d');
         const rCtx = resultCanvas.getContext('2d');
-        let spotlight = { x: 0, y: 0, baseR: 150, r: 150, dx: 8, dy: 8, phase: 0 };
+        
+        // 원의 크기와 속도를 화면 크기에 맞춰 시원하게 조정
+        let spotlight = { x: 0, y: 0, baseR: 200, r: 200, dx: 15, dy: 15, phase: 0 };
         let animationId, countdownValue = 5, isCaptured = false;
 
         window.switchStep = (stepId) => { ['step-start', 'step-game', 'step-result', 'step-gallery'].forEach(id => document.getElementById(id).classList.add('hidden')); document.getElementById(stepId).classList.remove('hidden'); };
         window.toggleFullscreen = () => { const doc = document.documentElement; if (!document.fullscreenElement) { if (doc.requestFullscreen) doc.requestFullscreen(); } else { document.exitFullscreen(); } };
 
         function syncCanvasSize() {
-            // 화면 픽셀 비율(DPR)을 고려하여 캔버스 해상도 강제 설정 (가장 중요)
             const dpr = window.devicePixelRatio || 1;
             gameCanvas.width = window.innerWidth * dpr;
             gameCanvas.height = window.innerHeight * dpr;
-            gCtx.scale(dpr, dpr); // 드로잉 좌표 보정
+            gCtx.scale(dpr, dpr); 
             
             if (spotlight.x === 0 || spotlight.x > window.innerWidth) spotlight.x = window.innerWidth / 2;
             if (spotlight.y === 0 || spotlight.y > window.innerHeight) spotlight.y = window.innerHeight / 2;
-            spotlight.baseR = Math.min(window.innerWidth, window.innerHeight) / 5;
+            
+            // 원의 크기를 화면의 1/2.5 정도로 크게 키움
+            spotlight.baseR = Math.min(window.innerWidth, window.innerHeight) / 2.5;
+
+            // 해상도에 비례한 이동 속도 설정 (시원한 이동 보장)
+            const speedBase = Math.min(window.innerWidth, window.innerHeight) * 0.015;
+            spotlight.dx = Math.max(12, speedBase) * (spotlight.dx > 0 ? 1 : -1);
+            spotlight.dy = Math.max(12, speedBase) * (spotlight.dy > 0 ? 1 : -1);
         }
 
         window.addEventListener('resize', syncCanvasSize);
@@ -299,20 +307,20 @@
 
         function startGameLoop() {
             if (isCaptured) return;
-            // 실시간으로 윈도우 크기 참조
             const w = window.innerWidth;
             const h = window.innerHeight;
 
-            spotlight.x += spotlight.dx; spotlight.y += spotlight.dy;
+            spotlight.x += spotlight.dx; 
+            spotlight.y += spotlight.dy;
 
-            // 바운스 체크 시 window 크기를 직접 사용하여 탈출 방지
-            if (spotlight.x - spotlight.r < 0) { spotlight.x = spotlight.r; spotlight.dx *= -1; }
-            if (spotlight.x + spotlight.r > w) { spotlight.x = w - spotlight.r; spotlight.dx *= -1; }
-            if (spotlight.y - spotlight.r < 0) { spotlight.y = spotlight.r; spotlight.dy *= -1; }
-            if (spotlight.y + spotlight.r > h) { spotlight.y = h - spotlight.r; spotlight.dy *= -1; }
+            // 부드럽게 튕기는 물리 로직 (벽에 닿으면 즉시 튕겨나옴, 불규칙한 흔들림 제거)
+            if (spotlight.x - spotlight.r < 0) { spotlight.x = spotlight.r; spotlight.dx = Math.abs(spotlight.dx); }
+            if (spotlight.x + spotlight.r > w) { spotlight.x = w - spotlight.r; spotlight.dx = -Math.abs(spotlight.dx); }
+            if (spotlight.y - spotlight.r < 0) { spotlight.y = spotlight.r; spotlight.dy = Math.abs(spotlight.dy); }
+            if (spotlight.y + spotlight.r > h) { spotlight.y = h - spotlight.r; spotlight.dy = -Math.abs(spotlight.dy); }
 
-            spotlight.phase += 0.05; spotlight.r = spotlight.baseR + Math.sin(spotlight.phase) * (spotlight.baseR * 0.4);
-            if (Math.random() < 0.03) { spotlight.dx = (Math.random() - 0.5) * 25; spotlight.dy = (Math.random() - 0.5) * 25; }
+            spotlight.phase += 0.05; 
+            spotlight.r = spotlight.baseR + Math.sin(spotlight.phase) * (spotlight.baseR * 0.15); // 숨쉬는 효과를 약간 줄여서 안정감 부여
             
             gCtx.clearRect(0, 0, w, h);
             gCtx.fillStyle = "rgba(0, 0, 0, 0.95)"; gCtx.fillRect(0, 0, w, h);
@@ -341,10 +349,10 @@
 
             const w = window.innerWidth;
             const h = window.innerHeight;
-            // 해상도를 높여서 뭉침 현상 방지
-            const exportDpr = 2; 
-            resultCanvas.width = w * exportDpr; 
-            resultCanvas.height = h * exportDpr;
+            
+            // 캡처용 캔버스 크기 고정
+            resultCanvas.width = w; 
+            resultCanvas.height = h;
 
             const videoRatio = video.videoWidth / video.videoHeight;
             const screenRatio = w / h;
@@ -367,11 +375,10 @@
             const mCtx = mask.getContext('2d');
             mCtx.fillStyle = "rgba(0,0,0,0.95)"; mCtx.fillRect(0, 0, mask.width, mask.height);
             mCtx.globalCompositeOperation = 'destination-out'; mCtx.beginPath(); 
-            mCtx.arc((w - spotlight.x) * exportDpr, spotlight.y * exportDpr, spotlight.r * exportDpr, 0, Math.PI * 2); 
+            mCtx.arc(w - spotlight.x, spotlight.y, spotlight.r, 0, Math.PI * 2); 
             mCtx.fill();
             rCtx.drawImage(mask, 0, 0);
 
-            // 미리보기 위해 임시 렌더링
             gCtx.clearRect(0, 0, w, h);
             gCtx.save(); gCtx.translate(w, 0); gCtx.scale(-1, 1); 
             gCtx.drawImage(resultCanvas, 0, 0, w, h); gCtx.restore();
@@ -380,17 +387,38 @@
         }
 
         window.uploadToFirebase = async () => {
-            if (!user) return;
+            if (!user) { alert("로그인 중입니다. 잠시만 기다려주세요."); return; }
             const btn = document.getElementById('saveBtn');
             btn.disabled = true; btn.innerText = "전송 중...";
             try {
+                // 1MB 용량 초과 방지를 위한 이미지 사이즈 최적화 로직 추가
+                const tempCanvas = document.createElement('canvas');
+                let uploadW = resultCanvas.width;
+                let uploadH = resultCanvas.height;
+                const MAX_WIDTH = 1280; // 최대 가로 픽셀을 1280으로 강제 제한하여 용량 확보
+                
+                if (uploadW > MAX_WIDTH) {
+                    uploadH = Math.floor(uploadH * (MAX_WIDTH / uploadW));
+                    uploadW = MAX_WIDTH;
+                }
+                
+                tempCanvas.width = uploadW;
+                tempCanvas.height = uploadH;
+                tempCanvas.getContext('2d').drawImage(resultCanvas, 0, 0, uploadW, uploadH);
+                
+                // 압축 적용 (0.6 품질)
+                const optimizedImageData = tempCanvas.toDataURL('image/jpeg', 0.6);
+
                 await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'photos'), {
-                    image: resultCanvas.toDataURL('image/jpeg', 0.5),
+                    image: optimizedImageData,
                     createdAt: serverTimestamp(),
                     userId: user.uid
                 });
                 window.showGallery();
-            } catch (e) { alert("저장 실패!"); btn.disabled = false; btn.innerText = "전시관 등록"; }
+            } catch (e) { 
+                alert("전송 실패: " + e.message + "\n(데이터베이스 권한 규칙이나 용량 초과일 수 있습니다.)"); 
+                btn.disabled = false; btn.innerText = "전시관 등록"; 
+            }
         };
 
         window.showGallery = () => {
@@ -418,6 +446,8 @@
                         grid.appendChild(div);
                     });
                 } else { grid.innerHTML = '<p class="col-span-full text-center py-32 text-2xl italic">사진이 없습니다.</p>'; }
+            }, (error) => {
+                console.error("Firestore 로드 오류: ", error);
             });
         };
 
