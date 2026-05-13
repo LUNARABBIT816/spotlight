@@ -313,11 +313,13 @@
             spotlight.x += spotlight.dx; 
             spotlight.y += spotlight.dy;
 
-            // 부드럽게 튕기는 물리 로직 (벽에 닿으면 즉시 튕겨나옴, 불규칙한 흔들림 제거)
-            if (spotlight.x - spotlight.r < 0) { spotlight.x = spotlight.r; spotlight.dx = Math.abs(spotlight.dx); }
-            if (spotlight.x + spotlight.r > w) { spotlight.x = w - spotlight.r; spotlight.dx = -Math.abs(spotlight.dx); }
-            if (spotlight.y - spotlight.r < 0) { spotlight.y = spotlight.r; spotlight.dy = Math.abs(spotlight.dy); }
-            if (spotlight.y + spotlight.r > h) { spotlight.y = h - spotlight.r; spotlight.dy = -Math.abs(spotlight.dy); }
+            // 반지름의 0.25(4분의 1)만큼만 화면 밖으로 허용
+            const margin = spotlight.r * 0.25; 
+
+            if (spotlight.x - margin < 0) { spotlight.x = margin; spotlight.dx = Math.abs(spotlight.dx); }
+            if (spotlight.x + margin > w) { spotlight.x = w - margin; spotlight.dx = -Math.abs(spotlight.dx); }
+            if (spotlight.y - margin < 0) { spotlight.y = margin; spotlight.dy = Math.abs(spotlight.dy); }
+            if (spotlight.y + margin > h) { spotlight.y = h - margin; spotlight.dy = -Math.abs(spotlight.dy); }
 
             spotlight.phase += 0.05; 
             spotlight.r = spotlight.baseR + Math.sin(spotlight.phase) * (spotlight.baseR * 0.15); // 숨쉬는 효과를 약간 줄여서 안정감 부여
