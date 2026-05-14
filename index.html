@@ -281,8 +281,8 @@
             if (spotlight.x === 0 || spotlight.x > window.innerWidth) spotlight.x = window.innerWidth / 2;
             if (spotlight.y === 0 || spotlight.y > window.innerHeight) spotlight.y = window.innerHeight / 2;
             
-            // 원의 크기를 화면의 1/5 정도로 키움
-            spotlight.baseR = Math.min(window.innerWidth, window.innerHeight) / 5;
+            // 원의 크기를 화면의 1/6 정도로 키움
+            spotlight.baseR = Math.min(window.innerWidth, window.innerHeight) / 6;
 
             // 해상도에 비례한 이동 속도 설정 (시원한 이동 보장)
             const speedBase = Math.min(window.innerWidth, window.innerHeight) * 0.04;
