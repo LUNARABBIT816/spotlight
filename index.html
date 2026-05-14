@@ -281,11 +281,11 @@
             if (spotlight.x === 0 || spotlight.x > window.innerWidth) spotlight.x = window.innerWidth / 2;
             if (spotlight.y === 0 || spotlight.y > window.innerHeight) spotlight.y = window.innerHeight / 2;
             
-            // 원의 크기를 화면의 1/3 정도로 키움
-            spotlight.baseR = Math.min(window.innerWidth, window.innerHeight) / 3;
+            // 원의 크기를 화면의 1/3.5 정도로 키움
+            spotlight.baseR = Math.min(window.innerWidth, window.innerHeight) / 3.5;
 
             // 해상도에 비례한 이동 속도 설정 (시원한 이동 보장)
-            const speedBase = Math.min(window.innerWidth, window.innerHeight) * 0.03;
+            const speedBase = Math.min(window.innerWidth, window.innerHeight) * 0.025;
             spotlight.dx = Math.max(15, speedBase) * (spotlight.dx > 0 ? 1 : -1);
             spotlight.dy = Math.max(15, speedBase) * (spotlight.dy > 0 ? 1 : -1);
         }
@@ -305,7 +305,7 @@
             } catch (err) { alert("카메라 권한을 확인해 주세요!"); }
         };
 
-        function startGameLoop() {
+        function startGame() {
             if (isCaptured) return;
             const w = window.innerWidth;
             const h = window.innerHeight;
@@ -322,7 +322,7 @@
             if (spotlight.y + margin > h) { spotlight.y = h - margin; spotlight.dy = -Math.abs(spotlight.dy); }
 
             spotlight.phase += 0.05; 
-            spotlight.r = spotlight.baseR + Math.sin(spotlight.phase) * (spotlight.baseR * 0.15); // 숨쉬는 효과를 약간 줄여서 안정감 부여
+            spotlight.r = spotlight.baseR + Math.sin(spotlight.phase) * (spotlight.baseR * 0.2); // 숨쉬는 효과를 약간 줄여서 안정감 부여
             
             gCtx.clearRect(0, 0, w, h);
             gCtx.fillStyle = "rgba(0, 0, 0, 0.95)"; gCtx.fillRect(0, 0, w, h);
