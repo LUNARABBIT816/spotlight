@@ -305,7 +305,6 @@
             } catch (err) { alert("카메라 권한을 확인해 주세요!"); }
         };
 
-        // 함수 이름 수정 (startGame -> startGameLoop)
         function startGameLoop() {
             if (isCaptured) return;
             const w = window.innerWidth;
@@ -316,11 +315,43 @@
 
             // 반지름의 0.25(4분의 1)만큼만 화면 밖으로 허용
             const margin = spotlight.r * 0.25; 
+            let hitWall = false; // 벽에 부딪혔는지 확인하는 변수
 
-            if (spotlight.x - margin < 0) { spotlight.x = margin; spotlight.dx = Math.abs(spotlight.dx); }
-            if (spotlight.x + margin > w) { spotlight.x = w - margin; spotlight.dx = -Math.abs(spotlight.dx); }
-            if (spotlight.y - margin < 0) { spotlight.y = margin; spotlight.dy = Math.abs(spotlight.dy); }
-            if (spotlight.y + margin > h) { spotlight.y = h - margin; spotlight.dy = -Math.abs(spotlight.dy); }
+            if (spotlight.x - margin < 0) { 
+                spotlight.x = margin; 
+                spotlight.dx = Math.abs(spotlight.dx); 
+                hitWall = 'x'; // 좌우 벽 충돌
+            } else if (spotlight.x + margin > w) { 
+                spotlight.x = w - margin; 
+                spotlight.dx = -Math.abs(spotlight.dx); 
+                hitWall = 'x'; // 좌우 벽 충돌
+            }
+            
+            if (spotlight.y - margin < 0) { 
+                spotlight.y = margin; 
+                spotlight.dy = Math.abs(spotlight.dy); 
+                hitWall = 'y'; // 상하 벽 충돌
+            } else if (spotlight.y + margin > h) { 
+                spotlight.y = h - margin; 
+                spotlight.dy = -Math.abs(spotlight.dy); 
+                hitWall = 'y'; // 상하 벽 충돌
+            }
+
+            // ⭐️ 자유분방한 튕기기 (랜덤 반사각) 로직
+            if (hitWall) {
+                // 화면 해상도에 맞춘 기본 속도 기준치
+                const speedBase = Math.min(w, h) * 0.018; 
+                // 0.5배 ~ 1.5배 사이의 예측 불가능한 속도 생성
+                const randomSpeed = Math.max(12, speedBase) * (0.5 + Math.random()); 
+
+                if (hitWall === 'x') {
+                    // 좌우 벽에 맞았을 때 -> 위아래(y축)로 튕기는 각도를 완전 랜덤으로 비틂
+                    spotlight.dy = (Math.random() > 0.5 ? 1 : -1) * randomSpeed;
+                } else if (hitWall === 'y') {
+                    // 상하 벽에 맞았을 때 -> 좌우(x축)로 튕기는 각도를 완전 랜덤으로 비틂
+                    spotlight.dx = (Math.random() > 0.5 ? 1 : -1) * randomSpeed;
+                }
+            }
 
             spotlight.phase += 0.05; 
             spotlight.r = spotlight.baseR + Math.sin(spotlight.phase) * (spotlight.baseR * 0.2); // 숨쉬는 효과를 약간 줄여서 안정감 부여
