@@ -340,7 +340,7 @@
             // ⭐️ 자유분방한 튕기기 (랜덤 반사각) 로직
             if (hitWall) {
                 // 화면 해상도에 맞춘 기본 속도 기준치
-                const speedBase = Math.min(w, h) * 0.018; 
+                const speedBase = Math.min(w, h) * 0.015; 
                 // 0.5배 ~ 1.5배 사이의 예측 불가능한 속도 생성
                 const randomSpeed = Math.max(12, speedBase) * (0.5 + Math.random()); 
 
