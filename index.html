@@ -285,7 +285,7 @@
             spotlight.baseR = Math.min(window.innerWidth, window.innerHeight) / 3.5;
 
             // 해상도에 비례한 이동 속도 설정 (이전보다 살짝 빠르게 상향)
-            const speedBase = Math.min(window.innerWidth, window.innerHeight) * 0.018;
+            const speedBase = Math.min(window.innerWidth, window.innerHeight) * 0.015;
             spotlight.dx = Math.max(12, speedBase) * (spotlight.dx > 0 ? 1 : -1);
             spotlight.dy = Math.max(12, speedBase) * (spotlight.dy > 0 ? 1 : -1);
         }
